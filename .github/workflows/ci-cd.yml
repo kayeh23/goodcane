@@ -1,0 +1,36 @@
+name: GoodCane CI
+
+on:
+  push:
+    branches: [ "main", "staging", "feat/**" ]
+  pull_request:
+    branches: [ "main", "staging" ]
+
+jobs:
+  validate:
+    name: Lint, Typecheck and Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run TypeScript typecheck
+        run: npx tsc --noEmit
+
+      - name: Run Next.js production build
+        run: npm run build
+        env:
+          NODE_ENV: production

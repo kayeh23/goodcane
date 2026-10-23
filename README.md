@@ -89,6 +89,7 @@ BASE_URL=http://localhost:3000 SHOTS=e2e/shots npm run e2e   # needs Chrome; set
 
 ## Docs
 
+- [docs/24_HOUR_SPRINT_PLAN.md](docs/24_HOUR_SPRINT_PLAN.md) — 24-hour sprint plan for 3 developers (concurrent setup, DB, auth/OTP, MoMo payments)
 - [docs/WRITEUP.md](docs/WRITEUP.md) — customer problem, TikTok evidence, assumptions checklist, approach, rollout plan (incl. WhatsApp levels)
 - [docs/MEASUREMENT.md](docs/MEASUREMENT.md) — metric definitions, formulas, hypotheses, 4-week pilot
 - [docs/VIDEO_SCRIPT.md](docs/VIDEO_SCRIPT.md) — ~2 min demo shot list

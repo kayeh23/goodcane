@@ -1,0 +1,294 @@
+# 24-Hour Sprint Implementation Plan: GoodCane Production Launch
+
+This plan is optimized for a **24-hour sprint** with 3 developers working concurrently on Git without merge collisions or blocking dependencies.
+
+---
+
+## Sprint Schedule Overview (T-0 to T-24)
+
+```
+[T00:00 - T02:00]  PHASE 1: Repo Setup, CI/CD & Service Modularization (Zero Merge Conflicts)
+[T02:00 - T08:00]  PHASE 2: Core Foundations (DB Engine, Staff Auth/OTP, MoMo Gateway)
+[T08:00 - T14:00]  PHASE 3: Business Logic & Feature Wiring (Capacity, Customer Portal, Webhooks)
+[T14:00 - T18:00]  PHASE 4: Integration & Synchronization (Cross-Merging & Service Wiring)
+[T18:00 - T21:00]  PHASE 5: Hardening, PII Protection & Kitchen Pack Sheets
+[T21:00 - T23:00]  PHASE 6: End-to-End Testing & Simulated Batch Run
+[T23:00 - T24:00]  PHASE 7: Production Release & Smoke Tests
+```
+
+---
+
+## Developer Ownership & Strict File Boundaries
+
+To prevent file collision during concurrent branch development:
+
+| Developer | Domain | Exclusive File Ownership | Shared / Read Only |
+|---|---|---|---|
+| **Person A** | **Platform & Kitchen Ops** | `src/lib/db/**`, `src/lib/services/batch.ts`, `src/lib/services/capacity.ts`, `src/lib/services/cron.ts`, `src/app/api/admin/**`, `src/app/api/cron/**`, `src/app/business/(desk)/**`, CI, `vercel.json` | `src/lib/types.ts` |
+| **Person B** | **Trust, Auth & Catalogue** | `src/lib/auth/**`, `src/lib/services/customer.ts`, `src/lib/services/catalogue.ts`, `src/lib/config.ts`, `src/app/business/login/**`, `src/app/checkout/**`, `src/app/my-orders/**`, `src/app/api/auth/**`, `src/app/api/lookup/**`, `src/app/shop.tsx` | `src/lib/types.ts` |
+| **Person C** | **Channels, WhatsApp & Money** | `src/lib/payments/**`, `src/lib/services/payments.ts`, `src/lib/services/messaging.ts`, `src/lib/whatsapp.ts`, `src/app/api/payments/**`, `src/app/api/webhooks/**`, `src/app/order/[id]/**`, `src/components/whatsapp-button.tsx` | `src/lib/types.ts` |
+
+---
+
+## Phase 1: Repo Setup, CI/CD & Modularization (Hours 0 – 2)
+
+**Goal:** Establish the repo, branch protections, CI, and eliminate merge conflicts by splitting `service.ts` before feature branches diverge.
+
+### Step 1.1: Git & Repository Setup (Lead / Person A)
+```bash
+# Initialize and push to organization
+git init
+git add .
+git commit -m "chore: initial commit of GoodCane prototype base"
+git branch -M main
+git remote add origin https://github.com/<org>/goodcane.git
+git push -u origin main
+```
+
+**Branch Protection Rules for `main`:**
+* Require Pull Request with 1 approval.
+* Require status checks to pass (`lint`, `build`).
+* Disallow force pushes and direct commits.
+
+### Step 1.2: CI Pipeline Setup (Person A)
+Create `.github/workflows/ci.yml`:
+```yaml
+name: CI
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+```
+
+### Step 1.3: Immediate Modularization of `service.ts` (CRITICAL)
+To prevent all 3 developers from conflicting on `src/lib/service.ts`, Person A immediately refactors `src/lib/` on `main` before anyone branches:
+
+```
+src/lib/
+├── types.ts              <-- Core domain types (frozen contracts)
+├── config.ts             <-- Config, pricing, pickup spots
+├── dates.ts              <-- Timezone & cutoff utilities
+├── services/
+│   ├── batch.ts          <-- Person A owns: sync, capacity, forecast
+│   ├── customer.ts       <-- Person B owns: customer creation, lookup, OTP
+│   ├── orders.ts         <-- Shared/Person B: createOrder, cancel, reorder
+│   └── payments.ts       <-- Person C owns: status changes to 'paid', deposit rules
+└── db/                   <-- Person A owns: repository interfaces
+```
+
+All 3 developers execute `git pull origin main` once this commit lands.
+
+---
+
+## Phase 2: Core Foundations (Hours 2 – 8)
+
+| Developer | Branch | Primary Objective |
+|---|---|---|
+| **Person A (Platform)** | `feat/A-database-engine` | PostgreSQL schema, Drizzle/Prisma setup, connection pooling |
+| **Person B (Trust)** | `feat/B-auth-and-otp` | NextAuth/Iron-session for staff, Arkesel/Hubtel SMS OTP client |
+| **Person C (Channels)** | `feat/C-payments-gateway` | Paystack/Hubtel MoMo checkout API client + webhook endpoint |
+
+### Person A Tasks (Hours 2 – 8)
+1. Provision cloud PostgreSQL (Supabase / Neon / AWS RDS).
+2. Install ORM: `npm i drizzle-orm pg @types/pg` + `npm i -D drizzle-kit`.
+3. Create database tables in `src/lib/db/schema.ts` matching existing entities:
+   * `customers` (`id`, `name`, `phone`, `reminders_opt_in`, `created_at`)
+   * `orders` (`id`, `code`, `customer_id`, `batch_date`, `items_json`, `fulfilment_json`, `status`, `source`, `total`)
+   * `standing_orders` (`id`, `customer_id`, `items_json`, `status`, `skip_batches`)
+   * `reminders` (`id`, `customer_id`, `batch_date`, `status`, `message`)
+   * `staff_users` (`id`, `username`, `password_hash`, `role`)
+4. Implement standard Repository methods in `src/lib/db/repo.ts` (`getOrder`, `createOrder`, `listBatchOrders`).
+
+### Person B Tasks (Hours 2 – 8)
+1. Build Staff Authentication in `src/lib/auth/staff.ts`:
+   * Use session cookies (`iron-session`).
+   * Add login endpoint `/api/auth/login` (verify username & bcrypt password against `staff_users`).
+   * Protect all `/api/admin/*` routes with session verification middleware.
+2. Build Ghana SMS OTP Service in `src/lib/auth/otp.ts`:
+   * Provider: Arkesel API (`https://sms.arkesel.com/api/v2/sms/send`) or Hubtel.
+   * `sendOTP(phone)`: Generate 4-digit code, store in Redis/DB with 5-minute expiry.
+   * **Dev Fallback:** If `NODE_ENV === "development"`, log the OTP code to terminal (`console.log`) so development is never blocked.
+3. Build `/api/auth/otp/send` and `/api/auth/otp/verify`.
+
+### Person C Tasks (Hours 2 – 8)
+1. Set up Paystack Gateway Adapter in `src/lib/payments/paystack.ts`:
+   * API: `POST https://api.paystack.co/transaction/initialize`
+   * Currency: `GHS`, Channels: `["mobile_money", "card"]`.
+   * Metadata: `{ orderId, orderCode, customerPhone }`.
+2. Create Payment Initiation Endpoint `/api/payments/initialize`:
+   * Receives `orderId`, validates order status is `confirmed` or `requested`.
+   * Returns `{ authorization_url, access_code, reference }`.
+3. Scaffold Webhook Listener `/api/webhooks/paystack`:
+   * Verify HMAC signature (`crypto.createHmac('sha512', secret).update(body).digest('hex')`).
+   * Check event: `charge.success`.
+
+---
+
+## Phase 3: Business Logic & Feature Wiring (Hours 8 – 14)
+
+### Person A: Batch Capacity & Background Sync
+1. **Capacity Guard (`src/lib/services/capacity.ts`):**
+   * Before creating an order, query `SUM(units)` for the batch.
+   * If total liters $\ge$ batch limit (e.g. 150L), throw HTTP 409 "Batch is at full capacity".
+2. **Scheduled Sync Worker (`src/app/api/cron/sync/route.ts`):**
+   * Configured via `vercel.json` crons (runs hourly).
+   * Actions:
+     * Check cutoff time: if `now >= cutoff` and orders are still `requested`, update to `cancelled` (`reason: "Unconfirmed at cutoff"`).
+     * Instantiate orders for active `standing_orders` for next week.
+     * Generate reminder drafts for eligible customers.
+
+### Person B: Customer Portal (`/my-orders`) & Checkout Lock
+1. **Update `/checkout`:**
+   * Integrate confirmed pickup locations and delivery areas.
+   * Add Ghana Data Protection Act (Act 843) consent badge: *"Your phone number is used solely to coordinate your juice delivery. We never share your data."*
+2. **Secure `/my-orders`:**
+   * Require phone number + OTP verification modal before revealing order history.
+   * Wire customer order actions: `Cancel order` (disabled after Thursday 6pm cutoff or after payment).
+   * Wire standing order actions: `Skip next batch`, `Pause`, `Cancel`.
+
+### Person C: Order Status Payment Flow & WhatsApp Templates
+1. **Update `/order/[id]` Status View:**
+   * Add dynamic **"Pay with Mobile Money (GH₵)"** CTA button when order status is `confirmed`.
+   * Redirect to Paystack checkout or trigger direct USSD push prompt.
+   * Add real-time polling or toast notifications for status updates once paid.
+2. **Large-Format Deposit Requirement:**
+   * In `src/lib/services/orders.ts`: If cart contains Tigernut 2L or 4L, enforce 50% non-refundable deposit.
+3. **Refine WhatsApp Link Builders:**
+   * Update message templates in `src/lib/whatsapp.ts` with confirmed business number (`NEXT_PUBLIC_GOODCANE_WHATSAPP`).
+   * Include exact pickup time windows and payment confirmation status.
+
+---
+
+## Phase 4: Integration & Synchronization (Hours 14 – 18)
+
+**Check-in Milestone (Hour 14):** Merge all feature branches into `main`.
+
+```bash
+# Person A reviews and merges B and C PRs
+git checkout main
+git pull origin main
+git merge origin/feat/A-database-engine
+git merge origin/feat/B-auth-and-otp
+git merge origin/feat/C-payments-gateway
+```
+
+### Cross-System Wiring Tasks:
+* **Person A & B:** Connect staff session credentials to the actual `staff_users` table created by Person A. Ensure `/business/*` redirects unauthenticated users to `/business/login`.
+* **Person A & C:** Connect the Paystack webhook handler to update order status to `paid` using Person A's database transaction.
+* **Person B & C:** Test customer checkout with OTP $\rightarrow$ payment initiation $\rightarrow$ status transition.
+
+---
+
+## Phase 5: Hardening & Kitchen Operations (Hours 18 – 21)
+
+### Person A (Platform)
+* **Kitchen Pack Sheet View:** Create `/business/packing`:
+  * Group confirmed & paid bottles by fulfillment location:
+    * *Adenta Shop Table*
+    * *Parks & Gardens Table*
+    * *Green Butterfly Table*
+    * *Delivery Dispatch Table*
+  * Checkbox toggle for staff: `[ ] Bottled -> [ ] Packed -> [ ] Collected`.
+* **Export Updates:** Ensure `/api/admin/export` exports real database orders to CSV.
+
+### Person B (Trust & Security)
+* **Phone Masking:** Update staff desk UI to mask customer phones (`024 *** *100`) by default, with a "Show" button for authorized staff.
+* **Rate Limiting:** Protect `/api/auth/otp/send` with `@upstash/ratelimit` (max 3 SMS requests per phone per 10 minutes to prevent SMS billing abuse).
+* **Environment Scrubbing:** Ensure all demo data buttons and fake customer indicators are hidden when `NODE_ENV === "production"`.
+
+### Person C (Channels & Ops)
+* **WhatsApp Desk Actions:** Connect `/business/reminders` so tapping "Open in WhatsApp" logs the message as `opened_whatsapp` in the database.
+* **SMS Error Handling:** Ensure friendly UI error messages when a customer enters an invalid Ghana phone number or payment fails.
+
+---
+
+## Phase 6: End-to-End Testing & Simulation (Hours 21 – 23)
+
+Run a complete simulated weekly batch cycle on staging:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Customer
+    actor Staff
+    participant Web as Web App
+    participant Pay as Paystack
+    participant DB as Postgres DB
+
+    Customer->>Web: Places Pre-order (Raw + Tigernut 500ml)
+    Web->>DB: Save Order as 'requested'
+    Staff->>Web: Opens Batch Desk & taps 'Confirm'
+    Web->>DB: Update Status to 'confirmed'
+    Customer->>Web: Clicks 'Pay with MoMo'
+    Web->>Pay: Initialize Transaction
+    Customer->>Pay: Completes MoMo prompt on phone
+    Pay->>Web: Webhook 'charge.success'
+    Web->>DB: Atomic Update Order to 'paid'
+    Staff->>Web: Opens Kitchen Pack Sheet -> Marks 'Bottled'
+    Staff->>Web: Taps 'Open in WhatsApp' -> Collection notice sent
+```
+
+1. **Automated E2E:** Run updated Playwright test suite:
+   ```bash
+   BASE_URL=https://staging.goodcane.co npm run e2e
+   ```
+2. **MoMo Webhook Test:** Trigger Paystack test webhooks via CLI to ensure idempotency.
+3. **Cutoff Simulation:** Advance the clock past Thursday 6pm and trigger `/api/cron/sync` to verify auto-cancellation of unconfirmed requests.
+
+---
+
+## Phase 7: Production Release & Handoff (Hours 23 – 24)
+
+### Production Checklist
+1. **Vercel Production Deployment:**
+   * Link production branch (`main`) to Vercel production domain (`order.goodcane.co` or similar).
+2. **Environment Variables Configuration:**
+
+```env
+# Node / Core
+NODE_ENV=production
+NEXT_PUBLIC_APP_URL=https://order.goodcane.co
+
+# Database (Person A)
+DATABASE_URL=postgresql://user:pass@ep-host.pooler.region.neon.tech/goodcane?sslmode=require
+
+# Authentication & Rate Limiting (Person B)
+SESSION_SECRET=min_32_character_random_string_for_iron_session
+UPSTASH_REDIS_REST_URL=https://your-upstash.upstash.io
+UPSTASH_REDIS_REST_TOKEN=your_token
+
+# SMS Gateway (Person B)
+ARKESEL_API_KEY=your_arkesel_key
+SMS_SENDER_ID=GoodCane
+
+# Payments (Person C)
+PAYSTACK_SECRET_KEY=sk_live_xxxx
+NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_live_xxxx
+PAYSTACK_WEBHOOK_SECRET=your_paystack_webhook_secret
+
+# Channels (Person C)
+NEXT_PUBLIC_GOODCANE_WHATSAPP=233500000000 # Confirmed GoodCane WhatsApp Number
+```
+
+3. **Smoke Test:**
+   * Place 1 real GH₵1.00 test order on production.
+   * Complete MoMo payment with real mobile money wallet.
+   * Verify order transitions to `PAID` on the Batch Desk.
+   * Cancel and refund the test order.
+
+---
+
+## Emergency Fallback Protocol (If Anyone Gets Stuck)
+
+* **If PostgreSQL deployment is delayed:** Person A provides an Upstash Redis key-value store using the existing `store/index.ts` interface. Feature development never stops.
+* **If SMS Gateway approval is delayed:** Person B keeps `console.log(otp)` active in development/staging and provides a temporary bypass code (`1234`) for internal reviewers.
+* **If Paystack Live activation is delayed:** Person C keeps Paystack in **Test Sandbox Mode** (`sk_test_...`) with test MoMo prompts so payment UX and webhooks are 100% verified.

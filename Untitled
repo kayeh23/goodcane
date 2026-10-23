@@ -1,0 +1,13 @@
+# Demo passcode for the business dashboard (shown on the login screen — demo only).
+DEMO_PASSCODE=goodcane-demo
+
+# PLACEHOLDER WhatsApp number for click-to-chat (wa.me). Replace with GoodCane's
+# number ONLY once GoodCane has approved it. Digits only, with country code.
+NEXT_PUBLIC_GOODCANE_WHATSAPP=233557059861
+
+# Optional persistence (otherwise an in-memory store seeded with sample data is used).
+# Upstash Redis REST credentials, or the Vercel KV / Upstash Marketplace equivalents.
+# UPSTASH_REDIS_REST_URL=
+# UPSTASH_REDIS_REST_TOKEN=
+# KV_REST_API_URL=
+# KV_REST_API_TOKEN=
