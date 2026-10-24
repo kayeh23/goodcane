@@ -44,7 +44,7 @@ Sample customer phones to try in **My orders**: `020 000 0001` (standing order, 
 
 API (JSON): `GET /api/batch`, `POST /api/orders` (409 when the batch is at capacity), `GET /api/orders/[id]`, `POST /api/orders/[id]/reorder`, `POST /api/orders/[id]/cancel`, `POST /api/lookup`, `POST /api/standing/[id]` (`skip|unskip|pause|resume|cancel`), `POST /api/reminders/preferences`. `GET`/`POST /api/cron/sync` runs cutoff auto-cancel plus standing-order/reminder sync; production requires `Authorization: Bearer CRON_SECRET`.
 
-Staff session: `POST /api/auth/login` `{ username, password }` → `{ ok: true }` and cookie `goodcane_staff`; `POST /api/auth/logout` → `{ ok: true }`; `GET /api/auth/me` → `{ username, role }` or 401. Customer OTP: `POST /api/auth/otp/send` `{ phone }` → `{ ok: true }` (429 when limited); `POST /api/auth/otp/verify` `{ phone, code }` → `{ ok: true }` and cookie `goodcane_customer`.
+Staff session: `POST /api/auth/login` `{ username, password }` → `{ ok: true }` and cookie `goodcane_staff`; `POST /api/auth/logout` → `{ ok: true }`; `GET /api/auth/me` → `{ username, role }` or 401. Customer OTP: `POST /api/auth/otp/send` `{ phone }` → `{ ok: true }` (429 when limited); `POST /api/auth/otp/verify` `{ phone, code }` → `{ ok: true }` and cookie `goodcane_customer`. The OTP cookie stores `233XXXXXXXXX`. `requireCustomer` (lookup, checkout orders, my-orders APIs, Paystack initialize) maps that to local `0XXXXXXXXX` so it matches customer rows in Postgres.
 
 Payments: `POST /api/payments/initialize` `{ orderId, customerEmail? }` → `{ authorization_url, access_code, reference, order_id, order_code, amount, total, is_deposit }` for a **confirmed** order. `POST /api/webhooks/paystack` is the Paystack `charge.success` body with header `x-paystack-signature`. See [docs/PAYMENTS.md](docs/PAYMENTS.md).
 
@@ -103,7 +103,7 @@ BASE_URL=http://localhost:3000 DEV_STAFF_PASSWORD=dev-only SHOTS=e2e/shots npm r
 - **Default store is in-memory**, seeded with sample data on cold start. Zero setup on Vercel, but data **resets when the instance restarts**, and concurrent serverless instances may hold different copies. Good enough for a demo video; not for a pilot.
 - Set `DATABASE_URL` (pooled) and apply `drizzle/0000_init.sql` (or `npm run db:push`, which uses `DATABASE_URL_UNPOOLED`) to persist customers, orders, standing_orders, reminders, forecasts, and `staff_users` in Neon Postgres. Existing API handlers still call `mutate()`; the repo hydrates the domain document from tables so B/C do not wait on a SQL rewrite.
 - Set `UPSTASH_REDIS_REST_URL`/`TOKEN` (or `KV_REST_API_URL`/`TOKEN`) to persist the same JSON document in Upstash Redis when Postgres is not ready.
-- **Phone lookup is not authentication**: anyone with a number could see that number's orders. A pilot should add an SMS/WhatsApp one-time code.
+- Customer order APIs require the OTP cookie. Lookup ignores the request body and uses the session phone after `normalisePhone`.
 - The batch desk requires the staff session. With `DATABASE_URL` set, login reads `staff_users` via `getStaffByUsername`. `DEV_STAFF_PASSWORD` is used only when that row is missing, and it is ignored when `VERCEL_ENV=production`.
 - Times are Ghana time (UTC+0). Batch day/cutoff are assumptions until GoodCane confirms.
 - WhatsApp: links only. Sample phone numbers are fake, so wa.me links for sample customers lead nowhere real.

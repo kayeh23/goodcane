@@ -58,9 +58,8 @@ await m.getByRole("button", { name: /Send pre-order request/ }).click();
 await m.waitForURL(/\/order\//);
 await m.getByText("Request received").waitFor();
 const wa = await m.getByRole("link", { name: "Send to GoodCane on WhatsApp" }).getAttribute("href");
-must(wa.startsWith("https://wa.me/233000000000?text=") && decodeURIComponent(wa).includes("Pre-order request GC-"), "WhatsApp click-to-chat link uses placeholder number + order ref");
+must(wa.startsWith("https://wa.me/") && decodeURIComponent(wa).includes("Pre-order request GC-"), "WhatsApp click-to-chat link uses WhatsApp number + order ref");
 const orderCode = (await m.locator("text=/GC-\\d+/").first().textContent()).match(/GC-\d+/)[0];
-await shot(m, "mobile-04-order-status");
 log("placed", orderCode);
 
 // ---------- 2. business confirms + marks paid

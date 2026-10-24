@@ -5,6 +5,7 @@ import { mutate } from "./db";
 import { AppError } from "./errors";
 import { runScheduledSync } from "./services/cron";
 import type { DB } from "./types";
+import { normalisePhone } from "./util";
 
 /** Legacy demo cookie. Logout still clears it. It does not authorize /api/admin. */
 export const ADMIN_COOKIE = "gc_admin";
@@ -23,11 +24,13 @@ export async function body(req: NextRequest): Promise<Record<string, unknown>> {
   }
 }
 
-/** Return the verified customer phone, or a 401 JSON response. */
+/** Return the verified customer phone in local 0XXXXXXXXX form, or a 401 JSON response. */
 export async function requireCustomer(_req: NextRequest): Promise<string | Response> {
   const phone = await getCustomerSession();
   if (!phone) return NextResponse.json({ error: "Please sign in to your account." }, { status: 401 });
-  return phone;
+  const local = normalisePhone(phone);
+  if (!local) return NextResponse.json({ error: "Please sign in to your account." }, { status: 401 });
+  return local;
 }
 
 /** Run fn against the synced DB inside the write lock, map errors to JSON. */
