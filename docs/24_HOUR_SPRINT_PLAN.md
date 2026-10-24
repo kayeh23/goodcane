@@ -215,6 +215,8 @@ git merge origin/feat/C-payments-gateway
 
 ## Phase 5: Hardening & Kitchen Operations (Hours 18 – 21)
 
+**Person A status:** Packing UI already shipped (PR #7). This branch does not rebuild it. CSV export uses the live store filename `goodcane-batch-{date}.csv`. Empty Neon still lists the next batch and the four packing tables. Desk pages use `DeskQueryStatus` so a failed `/api/admin/*` fetch is an error, not infinite Loading. **STOP after this PR** — Person B (phone mask, OTP rate limit, hide demo chrome) and Person C (WhatsApp log, payment error copy) stay on their branches.
+
 ### Person A (Platform)
 * **Kitchen Pack Sheet View:** Create `/business/packing`:
   * Group confirmed & paid bottles by fulfillment location:

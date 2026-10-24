@@ -1,13 +1,22 @@
 "use client";
 import type { metrics } from "@/lib/analytics";
 import { fmtBatch } from "@/lib/dates";
-import { Kpi, PageTitle, pct, useAdmin } from "@/components/admin";
+import { DeskQueryStatus, Kpi, PageTitle, pct, useAdmin } from "@/components/admin";
 
 type M = ReturnType<typeof metrics>;
 
 export default function MetricsPage() {
-  const { data: m } = useAdmin<M>("/api/admin/metrics");
-  if (!m) return <p className="text-sm text-black/50">Loading…</p>;
+  const { data: m, error, loading } = useAdmin<M>("/api/admin/metrics");
+  if (!m) {
+    return (
+      <DeskQueryStatus
+        loading={loading}
+        error={error}
+        hasData={false}
+        emptyMessage="No metrics yet for this store."
+      />
+    );
+  }
   const maxC = Math.max(1, ...m.weeks.map((w) => w.confirmedOrders));
   const maxU = Math.max(1, ...m.weeks.map((w) => Math.max(w.actualUnits, w.forecastUnits ?? 0)));
   return (

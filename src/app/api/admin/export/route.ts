@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   return handle(
     (db) =>
       new Response(batchCsv(db, batch), {
-        headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="goodcane-batch-${batch}-SAMPLE.csv"`, "Cache-Control": "no-store" },
+        headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="goodcane-batch-${batch}.csv"`, "Cache-Control": "no-store" },
       }),
     { admin: req },
   );

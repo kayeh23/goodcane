@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
     (db) => {
       const B = nextBatch();
       const batch = sp.get("batch") || B;
-      const batches = [...new Set(db.orders.map((o) => o.batchDate))].sort().reverse();
+      const batches = [...new Set([batch, B, ...db.orders.map((o) => o.batchDate)])].sort().reverse();
 
       const batchOrders = db.orders
         .filter((o) => o.batchDate === batch && isFirm(o))

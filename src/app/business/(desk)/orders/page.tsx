@@ -8,7 +8,7 @@ import type { StandingOrder } from "@/lib/types";
 import { cedis } from "@/lib/util";
 import { confirmationText, waLink } from "@/lib/whatsapp";
 import { Dot, StatusBadge } from "@/components/brand";
-import { PageTitle, useAdmin } from "@/components/admin";
+import { DeskQueryStatus, PageTitle, useAdmin } from "@/components/admin";
 import { api } from "@/components/client";
 import { WhatsAppLink } from "@/components/whatsapp-button";
 
@@ -23,7 +23,7 @@ export default function OrdersPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const q = new URLSearchParams({ status, source, ...(batch ? { batch } : {}) }).toString();
-  const { data, reload } = useAdmin<Resp>(`/api/admin/orders?${q}`);
+  const { data, error, loading, reload } = useAdmin<Resp>(`/api/admin/orders?${q}`);
 
   const act = async (o: DecoratedOrder, action: string, label: string) => {
     let reason: string | undefined;
@@ -50,7 +50,7 @@ export default function OrdersPage() {
     <>
       <PageTitle
         title="Orders"
-        sub={data ? `${shown.length} shown · next batch ${fmtBatch(data.nextBatch)}` : "Loading…"}
+        sub={data ? `${shown.length} shown · next batch ${fmtBatch(data.nextBatch)}` : "Staff order list for the selected batch."}
         right={
           <div className="flex rounded-xl bg-cream-2 p-1 text-sm">
             {(["orders", "standing"] as const).map((t) => (
@@ -62,8 +62,14 @@ export default function OrdersPage() {
         }
       />
       {msg && <p className="mb-3 rounded-xl border border-black/10 bg-white p-3 text-sm" role="status">{msg}</p>}
+      <DeskQueryStatus
+        loading={loading}
+        error={error}
+        hasData={!!data}
+        emptyMessage="No orders in this store yet."
+      />
 
-      {tab === "orders" && (
+      {data && tab === "orders" && (
         <>
           <div className="mb-4 flex flex-wrap gap-2">
             <select aria-label="Batch" className={sel} value={batch || data?.batch || ""} onChange={(e) => setBatch(e.target.value)}>
@@ -141,7 +147,7 @@ export default function OrdersPage() {
         </>
       )}
 
-      {tab === "standing" && (
+      {data && tab === "standing" && (
         <div className="card overflow-x-auto">
           <table className="w-full min-w-[640px] text-sm">
             <thead className="bg-cream-2/60 text-left text-[12px] text-black/55">

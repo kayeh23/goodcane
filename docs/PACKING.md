@@ -16,6 +16,8 @@ During Saturday batch production, kitchen staff need to fulfill pre-orders effic
 Each order progresses through a three-stage preparation pipeline:
 `[ ] Bottled` -> `[ ] Packed` -> `[ ] Collected`
 
+When a batch has no confirmed or paid orders, the four tables still render (empty). `GET /api/admin/packing` always includes the next batch date in `batches` so the desk selector works on a fresh Postgres database. `GET /api/admin/export?batch=` downloads `goodcane-batch-{date}.csv` from the same store.
+
 ---
 
 ## 2. Fulfillment Pipeline Stages
