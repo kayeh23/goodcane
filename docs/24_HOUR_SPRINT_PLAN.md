@@ -156,6 +156,8 @@ Phase 1 is on `main`. This branch is Person A's Phase 2 database engine with tho
 
 ## Phase 3: Business Logic & Feature Wiring (Hours 8 – 14)
 
+**Person A status:** Capacity (150L, to confirm) and `/api/cron/sync` + `vercel.json` hourly cron are implemented. Standing-order sync skips a line that would overflow instead of 409ing the whole API. **STOP after this PR** — do not start packing (Phase 5) in the same branch.
+
 ### Person A: Batch Capacity & Background Sync
 1. **Capacity Guard (`src/lib/services/capacity.ts`):**
    * Before creating an order, query `SUM(units)` for the batch.

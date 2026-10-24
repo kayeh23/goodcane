@@ -1,7 +1,31 @@
+import { cutoffFor } from "../dates";
 import type { DB } from "../types";
 import { sync } from "./batch";
+import { pushEvent } from "./orders";
 
-/** Phase 3 wires this to `/api/cron/sync`. Phase 1 is the same as request-time `sync`. */
+const CUTOFF_REASON = "Unconfirmed at cutoff";
+
+/** Cancels leftover `requested` orders whose batch cutoff has passed. */
+export function cancelUnconfirmedAtCutoff(db: DB, now = new Date()): number {
+  let n = 0;
+  for (const o of db.orders) {
+    if (o.status !== "requested") continue;
+    if (cutoffFor(o.batchDate).getTime() > now.getTime()) continue;
+    o.status = "cancelled";
+    o.cancelledBy = "business";
+    o.cancelReason = CUTOFF_REASON;
+    pushEvent(o, "cancelled", "system", CUTOFF_REASON, now);
+    n += 1;
+  }
+  return n;
+}
+
+/**
+ * Hourly worker: close unconfirmed requests past cutoff, then the usual
+ * standing-order / reminder / forecast sync for the next open batch.
+ */
 export function runScheduledSync(db: DB, now = new Date(), sample = false) {
-  return sync(db, now, sample);
+  const cancelled = cancelUnconfirmedAtCutoff(db, now);
+  const batchDate = sync(db, now, sample);
+  return { batchDate, cancelled };
 }

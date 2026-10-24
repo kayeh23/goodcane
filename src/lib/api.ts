@@ -3,7 +3,7 @@ import { getStaffSession } from "./auth/staff";
 import { getCustomerSession } from "./auth/customer-session";
 import { mutate } from "./db";
 import { AppError } from "./errors";
-import { sync } from "./services/batch";
+import { runScheduledSync } from "./services/cron";
 import type { DB } from "./types";
 
 /** Legacy demo cookie. Logout still clears it. It does not authorize /api/admin. */
@@ -35,7 +35,7 @@ export async function handle<T>(fn: (db: DB) => T | Promise<T>, opts: { admin?: 
   if (opts.admin && !(await isAdmin(opts.admin))) return NextResponse.json({ error: "Staff sign-in required." }, { status: 401 });
   try {
     const out = await mutate(async (db) => {
-      sync(db);
+      runScheduledSync(db);
       return fn(db);
     });
     return out instanceof Response ? out : NextResponse.json(out, { headers: { "Cache-Control": "no-store" } });
