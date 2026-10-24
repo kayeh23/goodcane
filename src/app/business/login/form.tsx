@@ -27,7 +27,7 @@ export default function LoginForm() {
       <div className="mx-auto max-w-sm px-5 pt-12 pb-12">
         <Wordmark size="lg" />
         <h1 className="mt-6 font-display text-3xl font-bold">Batch desk</h1>
-        <p className="mt-1 text-sm text-black/60">Staff sign-in for GoodCane's pre-orders and demand view.</p>
+        <p className="mt-1 text-sm text-black/60">Staff sign-in for GoodCane&apos;s pre-orders and demand view.</p>
         <form
           className="card mt-6 space-y-3 p-5"
           onSubmit={async (e) => {
