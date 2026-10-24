@@ -53,6 +53,15 @@ npm run dev            # http://localhost:3000
 npm run build && npm start
 ```
 
+Postgres on Neon (production branch of project `soft-block-48919425`):
+
+```bash
+# DATABASE_URL (pooled) and DATABASE_URL_UNPOOLED are written to .env by `neon env pull`.
+npm run db:push
+# or, against the direct connection:
+psql "$DATABASE_URL_UNPOOLED" -f drizzle/0000_init.sql
+```
+
 End-to-end check (places an order, confirms, marks paid, reorders by phone, skips/cancels a standing order, approves a reminder and opens WhatsApp, exports CSV) with screenshots:
 
 ```bash
@@ -64,7 +73,7 @@ BASE_URL=http://localhost:3000 SHOTS=e2e/shots npm run e2e   # needs Chrome; set
 
 1. Push this repo to GitHub.
 2. In Vercel → **Add New Project** → import the repo (framework auto-detected: Next.js). No build settings needed.
-3. Optional env vars (see `.env.example`): `DEMO_PASSCODE`, `NEXT_PUBLIC_GOODCANE_WHATSAPP` (leave the placeholder until GoodCane approves), and Upstash/KV credentials for persistence.
+3. Optional env vars (see `.env.example`): `DEMO_PASSCODE`, `NEXT_PUBLIC_GOODCANE_WHATSAPP` (leave the placeholder until GoodCane approves), `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct) for Neon Postgres, or Upstash/KV credentials for JSON persistence.
 4. Deploy. Use **Reset demo data** on the Batch desk before recording a demo.
 
 ## Architecture
@@ -72,10 +81,10 @@ BASE_URL=http://localhost:3000 SHOTS=e2e/shots npm run e2e   # needs Chrome; set
 - Next.js 16 (App Router, Cache Components) + TypeScript + Tailwind CSS v4. Pages are client components calling small JSON route handlers.
 - `src/lib/config.ts` — **all assumptions in one place**: batch weekday (Sat), cutoff (Thu 6pm), products/prices (*to confirm*), pickup points, delivery placeholders, forecast window, WhatsApp placeholder number. Person B owns this file after Phase 1.
 - `src/lib/services/` — domain rules split by owner: `batch.ts` (sync, forecast, reminders), `orders.ts` (create/cancel/reorder), `customer.ts` (lookup, reminder opt-in), `payments.ts` (mark paid), plus Phase 3 stubs `capacity.ts` and `cron.ts`.
-- `src/lib/db/` — repository contract (`getOrder`, `listBatchOrders`, `mutate`). Phase 1 still wraps the JSON store; Postgres replaces the backing store in Phase 2.
+- `src/lib/db/` — repository contract (`getOrder`, `createOrder`, `listBatchOrders`, `mutate`, `getStaffByUsername`). Drizzle schema in `schema.ts`. Set `DATABASE_URL` (pooled Neon / `pg`) to use Postgres; otherwise the JSON store is used. Drizzle Kit uses `DATABASE_URL_UNPOOLED`.
 - `src/lib/analytics.ts` — dashboard, metrics, CSV.
 - `src/lib/seed.ts` — deterministic labelled sample data (28 sample customers, 8 past batches + current).
-- `src/lib/store/index.ts` — in-memory / Upstash JSON document used by `db/repo.ts` until Postgres lands.
+- `src/lib/store/index.ts` — in-memory / Upstash JSON document used when `DATABASE_URL` is unset.
 - `src/lib/whatsapp.ts` — wa.me link builders (no API). Person C owns this file after Phase 1.
 - `src/lib/errors.ts` — shared `AppError` for JSON API handlers.
 - `src/lib/types.ts` — frozen domain types. Change only via a shared PR.
@@ -83,7 +92,8 @@ BASE_URL=http://localhost:3000 SHOTS=e2e/shots npm run e2e   # needs Chrome; set
 ### Storage & known limitations
 
 - **Default store is in-memory**, seeded with sample data on cold start. Zero setup on Vercel, but data **resets when the instance restarts**, and concurrent serverless instances may hold different copies. Good enough for a demo video; not for a pilot.
-- Set `UPSTASH_REDIS_REST_URL`/`TOKEN` (or `KV_REST_API_URL`/`TOKEN`) to persist the same JSON document in Upstash Redis. For a pilot, implement Postgres in `src/lib/db/` (customers, orders, standing_orders, reminders, forecasts, staff_users) behind the same `getOrder` / `mutate` contract.
+- Set `DATABASE_URL` (pooled) and apply `drizzle/0000_init.sql` (or `npm run db:push`, which uses `DATABASE_URL_UNPOOLED`) to persist customers, orders, standing_orders, reminders, forecasts, and `staff_users` in Neon Postgres. Existing API handlers still call `mutate()`; the repo hydrates the domain document from tables so B/C do not wait on a SQL rewrite.
+- Set `UPSTASH_REDIS_REST_URL`/`TOKEN` (or `KV_REST_API_URL`/`TOKEN`) to persist the same JSON document in Upstash Redis when Postgres is not ready.
 - **Phone lookup is not authentication**: anyone with a number could see that number's orders. A pilot should add an SMS/WhatsApp one-time code.
 - The business passcode is a demo gate shown on screen.
 - Times are Ghana time (UTC+0). Batch day/cutoff are assumptions until GoodCane confirms.

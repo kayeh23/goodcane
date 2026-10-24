@@ -109,6 +109,8 @@ All 3 developers execute `git pull origin main` once this commit lands.
 | **Person B (Trust)** | `feat/B-auth-and-otp` | NextAuth/Iron-session for staff, Arkesel/Hubtel SMS OTP client |
 | **Person C (Channels)** | `feat/C-payments-gateway` | Paystack/Hubtel MoMo checkout API client + webhook endpoint |
 
+**Person A status:** Schema, Drizzle client (pooled `pg` on `DATABASE_URL`), `staff_users`, and repo methods are in `src/lib/db`. Neon project `soft-block-48919425` branch `production` is linked (`.neon`, `neon.ts`). If `DATABASE_URL` is unset, the JSON store still runs so B/C are not blocked. **STOP after this lands** — do not start capacity, cron, or packing (Phase 3/5). B can `getStaffByUsername` against `staff_users`; C can `getOrder` / later call `mutate` for `paid`. Schema is applied with `npm run db:push` (direct `DATABASE_URL_UNPOOLED`).
+
 ### Person A Tasks (Hours 2 – 8)
 1. Provision cloud PostgreSQL (Supabase / Neon / AWS RDS).
 2. Install ORM: `npm i drizzle-orm pg @types/pg` + `npm i -D drizzle-kit`.
