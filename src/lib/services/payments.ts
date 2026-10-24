@@ -2,7 +2,13 @@ import { AppError } from "../errors";
 import type { DB, LineItem, Order, OrderStatus } from "../types";
 import { itemsTotal } from "../util";
 
-function pushEvent(o: { events: { at: string; status: OrderStatus | "created"; by: "customer" | "business" | "system"; note?: string }[] }, status: OrderStatus | "created", by: "customer" | "business" | "system", note?: string, at = new Date()) {
+function pushEvent(
+  o: { events: { at: string; status: OrderStatus | "created"; by: "customer" | "business" | "system"; note?: string }[] },
+  status: OrderStatus | "created",
+  by: "customer" | "business" | "system",
+  note?: string,
+  at = new Date()
+) {
   o.events.push({ at: at.toISOString(), status, by, note });
 }
 
@@ -21,7 +27,7 @@ export function hasLargeFormatItem(items: LineItem[]): boolean {
   return items.some(
     (item) =>
       item.productId.toLowerCase() === "tigernut" &&
-      (item.sizeId.toLowerCase() === "2l" || item.sizeId.toLowerCase() === "4l"),
+      (item.sizeId.toLowerCase() === "2l" || item.sizeId.toLowerCase() === "4l")
   );
 }
 

@@ -1,7 +1,7 @@
 "use client";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
 import { WHATSAPP_IS_PLACEHOLDER, getProduct, getSize } from "@/lib/config";
 import { fmtBatch, fmtCutoff, fmtDateTime } from "@/lib/dates";
 import type { LineItem, OrderEvent, OrderStatus } from "@/lib/types";
@@ -29,6 +29,7 @@ export default function OrderStatusView() {
   const searchParams = useSearchParams();
   const { data: o, error, loading, reload } = useApi<OrderView>(`/api/orders/${id}`);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
   const simPosted = useRef(false);
   const idx = o ? STEPS.findIndex((s) => s.key === o.status) : -1;
   const payment = o ? calculatePaymentAmount(o.items) : null;

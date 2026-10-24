@@ -6,7 +6,7 @@ export interface InitializePaymentInput {
   amountInCedis: number;
   customerPhone: string;
   customerEmail?: string;
-  callbackUrl: string;
+  callbackUrl?: string;
 }
 
 export interface InitializePaymentResult {
@@ -87,6 +87,18 @@ export async function initializeTransaction(input: InitializePaymentInput): Prom
       orderId: input.orderId,
       orderCode: input.orderCode,
       customerPhone: input.customerPhone,
+      custom_fields: [
+        {
+          display_name: "Order Code",
+          variable_name: "order_code",
+          value: input.orderCode,
+        },
+        {
+          display_name: "Customer Phone",
+          variable_name: "customer_phone",
+          value: input.customerPhone,
+        },
+      ],
     },
   };
 

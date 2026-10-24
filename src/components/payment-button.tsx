@@ -25,6 +25,7 @@ export function PaymentButton({
     if (loading || disabled) return;
     setLoading(true);
     setErrorMessage(null);
+
     try {
       const response = await api<{ authorization_url: string }>("/api/payments/initialize", {
         body: { orderId },
@@ -51,6 +52,7 @@ export function PaymentButton({
           ? "Connecting to Paystack..."
           : `Pay with Mobile Money (${cedis(amountInCedis)}${isDeposit ? " deposit" : ""})`}
       </button>
+
       {errorMessage && (
         <p role="alert" className="text-center text-sm text-red-700">
           {errorMessage}

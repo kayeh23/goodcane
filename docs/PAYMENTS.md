@@ -1,64 +1,66 @@
 # Paystack payments
 
-Person C owns this flow. It is on `main` with the checks below. Orders are still stored through `mutate()` until `feat/A-database-engine` merges.
+This document covers the Paystack Mobile Money and card gateway integration for GoodCane (Person C: Channels, WhatsApp & Money).
 
-## Environment
+---
 
-| Variable | Required | Purpose |
-|---|---|---|
-| `PAYSTACK_SECRET_KEY` | Live and `next start` | Secret key. When unset, `next dev` simulates checkout. |
-| `PAYSTACK_WEBHOOK_SECRET` | No | HMAC key. Falls back to `PAYSTACK_SECRET_KEY`. |
-| `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` | No | Reserved for a client checkout. The current button uses the server redirect. |
-| `NEXT_PUBLIC_APP_URL` | No | Documented for deploys. The initialize route uses the request origin for the return URL. |
+## 1. Environment
 
-## `POST /api/payments/initialize`
+| Variable | Scope | Required | Purpose |
+|---|---|---|---|
+| `PAYSTACK_SECRET_KEY` | Server | Live and `next start` | Secret key (`sk_live_...` or `sk_test_...`). When unset outside production, simulated checkout is used. |
+| `PAYSTACK_WEBHOOK_SECRET` | Server | No | HMAC key for webhook signature verification. Falls back to `PAYSTACK_SECRET_KEY`. |
+| `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` | Client | No | Public key reserved for client checkout. |
+| `NEXT_PUBLIC_APP_URL` | Server | No | Deployment URL. The initialize route uses the request origin for the return URL. |
 
-Public. No staff session.
+---
 
-Request:
+## 2. API Endpoints
 
-```json
-{ "orderId": "ord_...", "customerEmail": "optional@example.com" }
-```
+### `POST /api/payments/initialize`
+Public endpoint. Starts Mobile Money or card checkout for a confirmed order.
 
-`callbackUrl` in the body is ignored. Paystack is given `{origin}/order/{orderId}`.
+* **Request**:
+  ```json
+  { "orderId": "o_xxx", "customerEmail": "customer@example.com" }
+  ```
+  `callbackUrl` is built server-side as `${origin}/order/${orderId}` and cannot be forged by the client.
 
-Response `200`:
+* **Response (200 OK)**:
+  ```json
+  {
+    "authorization_url": "https://checkout.paystack.com/...",
+    "access_code": "0123456789",
+    "reference": "gc_gc1001_1710000000000",
+    "order_id": "o_xxx",
+    "order_code": "GC-1001",
+    "amount": 90,
+    "total": 180,
+    "is_deposit": true
+  }
+  ```
 
-```json
-{
-  "authorization_url": "https://checkout.paystack.com/...",
-  "access_code": "...",
-  "reference": "gc_gc1001_1710000000000",
-  "order_id": "ord_...",
-  "order_code": "GC-1001",
-  "amount": 90,
-  "total": 180,
-  "is_deposit": true
-}
-```
+* **Rules**:
+  * The order must be in `confirmed` status. Orders with `requested`, `paid`, or `cancelled` status return HTTP 409.
+  * If the cart contains large-format made-to-order Tigernut (2L or 4L), `amount` is set to half of `total` (pesewa-rounded) and `is_deposit` is `true`.
+  * In development mode without `PAYSTACK_SECRET_KEY`, `authorization_url` returns `/order/{orderId}?simulated_payment=success&reference=sim_...` for zero developer blocking.
 
-The order must be `confirmed`. `requested`, `paid`, and `cancelled` return `409`. Tigernut 2L or 4L sets `amount` to half of `total` (pesewa-rounded) and `is_deposit` to `true`.
+### `POST /api/webhooks/paystack`
+Receives Paystack charge event notifications.
 
-Missing `orderId` returns `400` `{ "error": "Missing required parameter: orderId." }`.
+* **Signature**: Header `x-paystack-signature` verified using HMAC-SHA512.
+* **Double Verification**: Validated events are cross-checked with `GET /transaction/verify/:reference`.
+* **Rules**:
+  * `charge.success` marks the order `paid` if verified currency is `GHS` and amount in pesewas covers the payable.
+  * Idempotent: already-paid orders return `{ "received": true, "applied": true, "alreadyPaid": true }` without duplicating events.
+  * Short payments, cancelled orders, or non-confirmed orders return HTTP 200 with `{ "received": true, "applied": false, "reason": "..." }`.
 
-With no `PAYSTACK_SECRET_KEY` outside production, `authorization_url` is `/order/{orderId}?simulated_payment=success&reference=sim_...` and no Paystack call is made. Production without the key returns an error and does not simulate.
+---
 
-## `POST /api/webhooks/paystack`
+## 3. UI Flow & Component
 
-Paystack sends the raw JSON body and `x-paystack-signature` (HMAC-SHA512 of that body).
-
-* Signature is required whenever `PAYSTACK_SECRET_KEY` or `PAYSTACK_WEBHOOK_SECRET` is set, including in development.
-* With no secret, only `NODE_ENV !== "production"` and a reference starting with `sim_` is accepted. That is the local simulated checkout.
-* `charge.success` with a valid signature is verified again with `GET /transaction/verify/:reference`. The order id and amount come from that verified charge. Currency must be `GHS`.
-* The order is marked `paid` only when it is `confirmed` and the amount in pesewas covers the payable (full total, or the 50% deposit).
-* Already-paid orders return `applied: true` and `alreadyPaid: true` without a second event.
-* A short payment, a cancelled order, or any status other than `confirmed` returns `200` with `applied: false` and a `reason`, and does not change the order.
-* Other event names return `{ "received": true, "ignored": true }`.
-* A bad signature returns `401`. A verify call that fails returns `502` so Paystack can retry.
-
-## Customer page
-
-`/order/[id]` shows the Mobile Money button only while the order is `confirmed`. The button posts `{ orderId }` only. While that status lasts, the page reloads the order every 4 seconds. A deposit is labelled as a deposit, including after it is recorded. The desk can still mark a confirmed order paid manually.
-
-WhatsApp confirmation text includes whether payment was received. It does not include pickup clock times; those hours are still unconfirmed in `src/lib/config.ts`.
+* **Component**: `src/components/payment-button.tsx` (`<PaymentButton />`)
+* **Order Status View**: `src/app/order/[id]/status.tsx`
+* **Visibility**: The Mobile Money button displays only when the order status is `confirmed`.
+* **Real-time Polling**: While in `confirmed` status, the order page polls every 4 seconds to detect payment completion.
+* **Deposit Notice**: Displays whether an order required a deposit or is paid in full.

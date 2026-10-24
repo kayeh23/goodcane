@@ -14,17 +14,17 @@ A mobile-first web prototype that helps **GoodCane** (fresh sugarcane & tigernut
 5. Order is saved as a **REQUEST**. Optional **"Send to GoodCane on WhatsApp"** button opens a prefilled wa.me message.
 6. Comes back to **My orders** (phone lookup, remembered on the device) → **one-tap Reorder**, cancel before cutoff, **skip this week / pause / resume / cancel** a standing order, turn reminders off.
 
-**Business (“Batch desk”, staff sign-in)**
+**Business (“Batch desk”, passcode-gated)**
 - **Overview**: next-batch demand by product & size split **Requested / Confirmed / Paid**, prep plan in litres, standing-order summary, **4-batch demand outlook** (standing orders + moving average, method shown), **CSV export**, **Reset demo data**.
 - **Orders**: filters (batch, status, source) with **Confirm / Decline / Mark paid / Cancel**, optional **Notify on WhatsApp** (prefilled confirmation), and a standing-orders tab.
 - **Reminders**: queue drafted for opted-in recent customers. **Approve → “Open in WhatsApp” unlocks → business presses Send manually**; status becomes *Opened in WhatsApp (business sends manually)*.
 - **Metrics**: repeat-order rate, confirmed weekly orders, cancellation rate, forecast accuracy (1 − MAPE vs snapshotted forecasts), reminder conversion, opt-in rate — over 8 weeks of sample history.
 
-Order lifecycle: `REQUEST → CONFIRMED → PAID` (Paystack Mobile Money or card after confirm, or marked paid on the desk), or `CANCELLED` (by customer before cutoff, or by GoodCane). Tigernut 2L and 4L charge a 50% deposit; the order total stays the full amount.
+Order lifecycle: `REQUEST → CONFIRMED → PAID` (paid is marked manually), or `CANCELLED` (by customer before cutoff, or by GoodCane).
 
-## Staff sign-in
+## Demo passcode
 
-The batch desk uses `/api/auth/login` (`username`, `password`) and an iron-session cookie (`goodcane_staff`). Until `staff_users` lands from `feat/A-database-engine`, development accepts username `admin` and `DEV_STAFF_PASSWORD`. That password is ignored when `VERCEL_ENV=production`. `SESSION_SECRET` (at least 32 characters) is required for `next start`. The old demo passcode does not open the desk.
+`goodcane-demo` (shown on the login screen; override with `DEMO_PASSCODE`). Demo-only gate — a pilot needs real staff accounts.
 
 Sample customer phones to try in **My orders**: `020 000 0001` (standing order, paid this week), `020 000 0005` (standing order awaiting confirmation), `020 000 0013` (one-off buyer with a reminder pending). All are fake placeholders.
 
@@ -112,7 +112,7 @@ BASE_URL=http://localhost:3000 DEV_STAFF_PASSWORD=dev-only SHOTS=e2e/shots npm r
 ## Docs
 
 - [docs/24_HOUR_SPRINT_PLAN.md](docs/24_HOUR_SPRINT_PLAN.md) — 24-hour sprint plan for 3 developers (concurrent setup, DB, auth/OTP, MoMo payments)
-- [docs/PAYMENTS.md](docs/PAYMENTS.md) — Paystack initialize, webhook, and deposit rules
+- [docs/PAYMENTS.md](docs/PAYMENTS.md) — Paystack Mobile Money & Card gateway integration guide
 - [docs/WRITEUP.md](docs/WRITEUP.md) — customer problem, TikTok evidence, assumptions checklist, approach, rollout plan (incl. WhatsApp levels)
 - [docs/MEASUREMENT.md](docs/MEASUREMENT.md) — metric definitions, formulas, hypotheses, 4-week pilot
 - [docs/VIDEO_SCRIPT.md](docs/VIDEO_SCRIPT.md) — ~2 min demo shot list
