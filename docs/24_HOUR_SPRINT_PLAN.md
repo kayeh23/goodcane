@@ -193,6 +193,8 @@ Phase 1 is on `main`. This branch is Person A's Phase 2 database engine with tho
 
 ## Phase 4: Integration & Synchronization (Hours 14 – 18)
 
+**Person A status:** B/C PRs are on `main`. Wiring leftover: OTP session `233XXXXXXXXX` vs DB `0XXXXXXXXX` — `requireCustomer` now returns `normalisePhone(session)` so customers can load their own orders. **STOP** — do not start Phase 5 packing/export in this branch.
+
 **Check-in Milestone (Hour 14):** Merge all feature branches into `main`.
 
 ```bash
