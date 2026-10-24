@@ -4,14 +4,14 @@ import { fmtBatch, fmtDateTime } from "@/lib/dates";
 import type { Reminder } from "@/lib/types";
 import { reminderText, waLink } from "@/lib/whatsapp";
 import { StatusBadge } from "@/components/brand";
-import { PageTitle, useAdmin } from "@/components/admin";
+import { DeskQueryStatus, PageTitle, useAdmin } from "@/components/admin";
 import { api } from "@/components/client";
 import { WhatsAppLink } from "@/components/whatsapp-button";
 
 type R = Reminder & { customerName: string; customerPhone: string; optedIn: boolean };
 
 export default function RemindersPage() {
-  const { data, reload } = useAdmin<{ reminders: R[] }>("/api/admin/reminders");
+  const { data, error, loading, reload } = useAdmin<{ reminders: R[] }>("/api/admin/reminders");
   const [busy, setBusy] = useState<string | null>(null);
   const origin = useSyncExternalStore(() => () => {}, () => window.location.origin, () => "");
   const [msg, setMsg] = useState<string | null>(null);
@@ -40,7 +40,10 @@ export default function RemindersPage() {
         <b>Approval gate:</b> 1) Approve → 2) “Open in WhatsApp” becomes available → 3) you send manually. Sample phone numbers are fake placeholders. Automated sending (WhatsApp Business Platform) needs GoodCane&apos;s approval — see the write-up.
       </div>
       {msg && <p className="mb-3 rounded-xl border border-black/10 bg-white p-3 text-sm" role="status">{msg}</p>}
+      <DeskQueryStatus loading={loading} error={error} hasData={!!data} emptyMessage="No reminders drafted yet." />
 
+      {data && (
+      <>
       <h2 className="mb-2 text-sm font-bold">Waiting ({queue.length})</h2>
       <div className="space-y-2">
         {queue.length === 0 && <p className="card p-5 text-center text-sm text-black/50">No reminders waiting. They are drafted automatically for opted-in customers who ordered recently but haven&apos;t ordered for the next batch.</p>}
@@ -89,6 +92,8 @@ export default function RemindersPage() {
           </div>
         ))}
       </div>
+      </>
+      )}
     </>
   );
 }

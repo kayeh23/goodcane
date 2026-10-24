@@ -215,6 +215,8 @@ git merge origin/feat/C-payments-gateway
 
 ## Phase 5: Hardening & Kitchen Operations (Hours 18 – 21)
 
+**Person A status:** Packing UI already shipped (PR #7). This branch does not rebuild it. CSV export uses the live store filename `goodcane-batch-{date}.csv`. Empty Neon still lists the next batch and the four packing tables. Desk pages use `DeskQueryStatus` so a failed `/api/admin/*` fetch is an error, not infinite Loading. **STOP after this PR** — Person B (phone mask, OTP rate limit, hide demo chrome) and Person C (WhatsApp log, payment error copy) stay on their branches.
+
 ### Person A (Platform)
 * **Kitchen Pack Sheet View:** Create `/business/packing`:
   * Group confirmed & paid bottles by fulfillment location:
@@ -237,6 +239,8 @@ git merge origin/feat/C-payments-gateway
 ---
 
 ## Phase 6: End-to-End Testing & Simulation (Hours 21 – 23)
+
+**Person A status:** Cutoff simulation is `npm run test:cutoff` (`e2e/cutoff.ts`) plus optional `GET /api/cron/sync?at=` in non-production. Person C's Paystack idempotency file is `npm run test:webhook`. CI runs `npm run test:sim` (no Chrome). Playwright `npm run e2e` still needs a running server and Chrome — you run that locally. **STOP after this PR** — B/C keep OTP/Paystack live-path checks on their branches.
 
 Run a complete simulated weekly batch cycle on staging:
 

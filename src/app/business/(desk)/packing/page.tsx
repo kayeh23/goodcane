@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import type { PackingStage } from "@/lib/analytics";
 import { fmtBatch } from "@/lib/dates";
-import { Kpi, PageTitle, useAdmin } from "@/components/admin";
+import { DeskQueryStatus, Kpi, PageTitle, useAdmin } from "@/components/admin";
 import { api } from "@/components/client";
 import { PackingTable } from "@/components/packing-table";
 import type { PackingApiResponse } from "@/app/api/admin/packing/route";
@@ -18,7 +18,7 @@ export default function PackingPage() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const query = batch ? `?batch=${encodeURIComponent(batch)}` : "";
-  const { data, reload } = useAdmin<PackingApiResponse>(`/api/admin/packing${query}`);
+  const { data, error, loading, reload } = useAdmin<PackingApiResponse>(`/api/admin/packing${query}`);
 
   const handleUpdateStage = async (orderId: string, nextStage: PackingStage) => {
     setBusyId(orderId);
@@ -45,6 +45,15 @@ export default function PackingPage() {
   const packedBottles = data?.summary.packedBottles ?? 0;
   const collectedBottles = data?.summary.collectedBottles ?? 0;
 
+  const blocked = (
+    <DeskQueryStatus
+      loading={loading}
+      error={error}
+      hasData={!!data}
+      emptyMessage="The four fulfillment tables will show here once a batch is available."
+    />
+  );
+
   return (
     <>
       <PageTitle
@@ -52,7 +61,7 @@ export default function PackingPage() {
         sub={
           data
             ? `${totalBottles} bottles across ${data.summary.totalOrders} confirmed & paid orders · ${fmtBatch(data.batch)}`
-            : "Loading packing data…"
+            : "Confirmed and paid bottles by pickup table and delivery dispatch."
         }
         right={
           <div className="flex flex-wrap items-center gap-2">
@@ -70,7 +79,7 @@ export default function PackingPage() {
               ))}
             </select>
             <Link
-              href={`/api/admin/export?batch=${encodeURIComponent(currentBatch)}`}
+              href={`/api/admin/export?batch=${encodeURIComponent(currentBatch || data?.nextBatch || "")}`}
               className="rounded-lg border border-black/15 bg-white px-3 py-1.5 text-sm font-semibold text-black/75 hover:bg-black/5"
             >
               Export CSV
@@ -95,12 +104,16 @@ export default function PackingPage() {
         </div>
       )}
 
+      {blocked}
+
+      {data && (
+        <>
       {/* Overview KPIs */}
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Kpi
           label="Total bottles"
           value={totalBottles}
-          sub={`${data?.summary.totalOrders ?? 0} orders to fulfill`}
+          sub={`${data.summary.totalOrders} orders to fulfill`}
           tone="ink"
         />
         <Kpi
@@ -152,23 +165,18 @@ export default function PackingPage() {
         ))}
       </div>
 
-      {/* Tables by Location */}
       <div className="space-y-6">
-        {visibleTables.length === 0 ? (
-          <div className="card p-8 text-center text-sm text-black/50">
-            No packing tables found for this batch.
-          </div>
-        ) : (
-          visibleTables.map((tbl) => (
-            <PackingTable
-              key={tbl.id}
-              table={tbl}
-              busyId={busyId}
-              onUpdateStage={handleUpdateStage}
-            />
-          ))
-        )}
+        {visibleTables.map((tbl) => (
+          <PackingTable
+            key={tbl.id}
+            table={tbl}
+            busyId={busyId}
+            onUpdateStage={handleUpdateStage}
+          />
+        ))}
       </div>
+        </>
+      )}
     </>
   );
 }

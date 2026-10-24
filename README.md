@@ -16,6 +16,7 @@ A mobile-first web prototype that helps **GoodCane** (fresh sugarcane & tigernut
 
 **Business (“Batch desk”, passcode-gated)**
 - **Overview**: next-batch demand by product & size split **Requested / Confirmed / Paid**, prep plan in litres, standing-order summary, **4-batch demand outlook** (standing orders + moving average, method shown), **CSV export**, **Reset demo data**.
+- **Packing**: Saturday pack sheet grouped by Adenta / Parks & Gardens / Green Butterfly / Delivery Dispatch, with Bottled → Packed → Collected. Empty tables still render when Neon has no confirmed or paid orders.
 - **Orders**: filters (batch, status, source) with **Confirm / Decline / Mark paid / Cancel**, optional **Notify on WhatsApp** (prefilled confirmation), and a standing-orders tab.
 - **Reminders**: queue drafted for opted-in recent customers. **Approve → “Open in WhatsApp” unlocks → business presses Send manually**; status becomes *Opened in WhatsApp (business sends manually)*.
 - **Metrics**: repeat-order rate, confirmed weekly orders, cancellation rate, forecast accuracy (1 − MAPE vs snapshotted forecasts), reminder conversion, opt-in rate — over 8 weeks of sample history.
@@ -38,6 +39,7 @@ Sample customer phones to try in **My orders**: `020 000 0001` (standing order, 
 | `/my-orders` | Phone lookup, one-tap reorder, standing order controls, reminder toggle |
 | `/business/login` | Staff username and password |
 | `/business` | Next-batch demand, outlook, CSV export, reset |
+| `/business/packing` | Kitchen pack sheet by fulfillment table |
 | `/business/orders` | Orders list + actions, standing orders |
 | `/business/reminders` | Approval queue + WhatsApp click-to-chat |
 | `/business/metrics` | Pilot scorecard |
@@ -48,7 +50,7 @@ Staff session: `POST /api/auth/login` `{ username, password }` → `{ ok: true }
 
 Payments: `POST /api/payments/initialize` `{ orderId, customerEmail? }` → `{ authorization_url, access_code, reference, order_id, order_code, amount, total, is_deposit }` for a **confirmed** order. `POST /api/webhooks/paystack` is the Paystack `charge.success` body with header `x-paystack-signature`. See [docs/PAYMENTS.md](docs/PAYMENTS.md).
 
-Staff-only `/api/admin/*`: `overview`, `orders`, `orders/[id]` (`confirm|pay|cancel|notified`), `reminders`, `reminders/[id]` (`approve|dismiss|open`), `metrics`, `export`, `reset`. These routes require the staff session. They do not accept the old passcode cookie.
+Staff-only `/api/admin/*`: `overview`, `orders`, `orders/[id]` (`confirm|pay|cancel|notified|pack_stage`), `packing`, `reminders`, `reminders/[id]` (`approve|dismiss|open`), `metrics`, `export`, `reset`. These routes require the staff session. They do not accept the old passcode cookie. `GET /api/admin/export?batch=YYYY-MM-DD` downloads `goodcane-batch-{date}.csv` from the live store (Postgres when `DATABASE_URL` is set). A failed desk fetch shows an error, not an infinite Loading state.
 
 ## Run locally
 
@@ -68,7 +70,22 @@ npm run db:push
 psql "$DATABASE_URL_UNPOOLED" -f drizzle/0000_init.sql
 ```
 
-End-to-end check (places an order, confirms, marks paid, reorders by phone, skips/cancels a standing order, approves a reminder and opens WhatsApp, exports CSV) with screenshots:
+Cutoff and Paystack unit simulations (no Chrome, no server):
+
+```bash
+npm run test:cutoff    # Thursday 18:00 UTC auto-cancel of unconfirmed requests
+npm run test:webhook   # Person C Paystack idempotency + HMAC checks
+npm run test:sim       # both (also runs in CI)
+```
+
+Local clock past cutoff (dev only; ignored when `NODE_ENV=production`):
+
+```bash
+curl -sS "http://localhost:3000/api/cron/sync?at=2026-10-29T18:00:00.000Z"
+# with CRON_SECRET set: Authorization: Bearer $CRON_SECRET
+```
+
+Browser end-to-end (places an order, confirms, marks paid, reorders by phone, skips/cancels a standing order, approves a reminder and opens WhatsApp, exports CSV) with screenshots:
 
 ```bash
 # SESSION_SECRET must be 32+ characters for `next start`. Use the same DEV_STAFF_PASSWORD for the server and the test.
@@ -107,7 +124,7 @@ BASE_URL=http://localhost:3000 DEV_STAFF_PASSWORD=dev-only SHOTS=e2e/shots npm r
 - The batch desk requires the staff session. With `DATABASE_URL` set, login reads `staff_users` via `getStaffByUsername`. `DEV_STAFF_PASSWORD` is used only when that row is missing, and it is ignored when `VERCEL_ENV=production`.
 - Times are Ghana time (UTC+0). Batch day/cutoff are assumptions until GoodCane confirms.
 - WhatsApp: links only. Sample phone numbers are fake, so wa.me links for sample customers lead nowhere real.
-- Paystack marks a confirmed order paid when the verified charge covers the payable amount (full total, or 50% for Tigernut 2L/4L). A batch is capped at 150 litres (to confirm); `POST /api/orders` returns 409 when full. Unconfirmed requests are cancelled at cutoff by `/api/cron/sync` (hourly on Vercel) and on the next API request. Delivery fees are still to confirm. Pickup clock times are not in WhatsApp messages until GoodCane confirms them.
+- Paystack marks a confirmed order paid when the verified charge covers the payable amount (full total, or 50% for Tigernut 2L/4L). A batch is capped at 150 litres (to confirm); `POST /api/orders` returns 409 when full. Unconfirmed requests are cancelled at cutoff by `/api/cron/sync` (daily 18:00 UTC on Vercel Hobby) and on the next API request. Locally, `?at=` on that route advances the clock when `NODE_ENV` is not production. Delivery fees are still to confirm. Pickup clock times are not in WhatsApp messages until GoodCane confirms them.
 
 ## Docs
 

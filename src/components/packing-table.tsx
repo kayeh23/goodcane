@@ -137,7 +137,9 @@ export function PackingTable({ table, onUpdateStage, busyId }: PackingTableProps
       <div className="divide-y divide-black/10">
         {filteredOrders.length === 0 ? (
           <div className="p-8 text-center text-sm text-black/50">
-            No orders match the current filter in this table.
+            {filter === "all"
+              ? "No confirmed or paid orders for this table in this batch."
+              : "No orders match the current filter in this table."}
           </div>
         ) : (
           filteredOrders.map((order) => (

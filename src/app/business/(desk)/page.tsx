@@ -4,15 +4,24 @@ import { useState } from "react";
 import type { overview } from "@/lib/analytics";
 import { fmtBatch, fmtCutoff } from "@/lib/dates";
 import { Dot } from "@/components/brand";
-import { Kpi, PageTitle, useAdmin } from "@/components/admin";
+import { DeskQueryStatus, Kpi, PageTitle, useAdmin } from "@/components/admin";
 import { api } from "@/components/client";
 
 type Overview = ReturnType<typeof overview> & { storage: string; seededAt: string };
 
 export default function OverviewPage() {
-  const { data: d, reload } = useAdmin<Overview>("/api/admin/overview");
+  const { data: d, error, loading, reload } = useAdmin<Overview>("/api/admin/overview");
   const [resetting, setResetting] = useState(false);
-  if (!d) return <p className="text-sm text-black/50">Loading…</p>;
+  if (!d) {
+    return (
+      <DeskQueryStatus
+        loading={loading}
+        error={error}
+        hasData={false}
+        emptyMessage="No batch data yet. Confirm a request, or use Reset demo data in development."
+      />
+    );
+  }
   const total = d.rows.reduce((s, r) => ({ requested: s.requested + r.requested, confirmed: s.confirmed + r.confirmed, paid: s.paid + r.paid }), { requested: 0, confirmed: 0, paid: 0 });
   const maxRow = Math.max(1, ...d.rows.map((r) => r.requested + r.confirmed + r.paid));
   const maxOut = Math.max(1, ...d.outlook.map((w) => w.total));
