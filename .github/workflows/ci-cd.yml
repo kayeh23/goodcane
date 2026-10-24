@@ -30,6 +30,9 @@ jobs:
       - name: Run TypeScript typecheck
         run: npx tsc --noEmit
 
+      - name: Run cutoff and Paystack unit simulations
+        run: npm run test:sim
+
       - name: Run Next.js production build
         run: npm run build
         env:
