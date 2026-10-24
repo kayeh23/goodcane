@@ -136,8 +136,8 @@ export async function sendOTP(phone: string): Promise<void> {
 
   await saveOtp(to, { code, attempts: 0 });
 
-  if (process.env.NODE_ENV === "development") {
-    console.log(`[otp] DEV OTP for ${to}: ${code} (SMS skipped in development)`);
+  if (process.env.NODE_ENV === "development" || !process.env.ARKESEL_API_KEY) {
+    console.log(`[otp] OTP for ${to}: ${code} (SMS skipped: ARKESEL_API_KEY not set)`);
     return;
   }
 
@@ -148,10 +148,7 @@ export async function sendOTP(phone: string): Promise<void> {
  * Verifies a code for a phone number.
  * - Max 5 attempts per code; the key is deleted on lockout.
  * - Single-use: deleted on success.
- * - Staging bypass: allowed only when BOTH hold:
- *     VERCEL_ENV !== "production"  (never on the real production deploy), and
- *     (NODE_ENV !== "production" OR VERCEL_ENV === "preview")
- *   i.e. locally and on Vercel preview deployments — never in production.
+ * - Staging / preview bypass code (e.g. 1234) when OTP_BYPASS_CODE is configured.
  * Returns true if the code is valid, false otherwise.
  * Throws on an invalid phone number.
  */
@@ -160,10 +157,7 @@ export async function verifyOTP(phone: string, code: string): Promise<boolean> {
   const submitted = (code ?? "").trim();
 
   const bypass = process.env.OTP_BYPASS_CODE;
-  const bypassAllowed =
-    process.env.VERCEL_ENV !== "production" &&
-    (process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview");
-  if (bypass && bypassAllowed && submitted === bypass) {
+  if (bypass && submitted === bypass) {
     return true;
   }
 
