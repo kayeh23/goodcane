@@ -60,6 +60,7 @@ await m.getByText("Request received").waitFor();
 const wa = await m.getByRole("link", { name: "Send to GoodCane on WhatsApp" }).getAttribute("href");
 must(wa.startsWith("https://wa.me/") && decodeURIComponent(wa).includes("Pre-order request GC-"), "WhatsApp click-to-chat link uses WhatsApp number + order ref");
 const orderCode = (await m.locator("text=/GC-\\d+/").first().textContent()).match(/GC-\d+/)[0];
+await shot(m, "mobile-04-order-status");
 log("placed", orderCode);
 
 // ---------- 2. business confirms + marks paid
