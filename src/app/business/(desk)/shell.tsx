@@ -7,6 +7,7 @@ import { api } from "@/components/client";
 const NAV = [
   { href: "/business", label: "Overview" },
   { href: "/business/orders", label: "Orders" },
+  { href: "/business/packing", label: "Packing" },
   { href: "/business/reminders", label: "Reminders" },
   { href: "/business/metrics", label: "Metrics" },
 ];
