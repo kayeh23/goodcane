@@ -70,7 +70,22 @@ npm run db:push
 psql "$DATABASE_URL_UNPOOLED" -f drizzle/0000_init.sql
 ```
 
-End-to-end check (places an order, confirms, marks paid, reorders by phone, skips/cancels a standing order, approves a reminder and opens WhatsApp, exports CSV) with screenshots:
+Cutoff and Paystack unit simulations (no Chrome, no server):
+
+```bash
+npm run test:cutoff    # Thursday 18:00 UTC auto-cancel of unconfirmed requests
+npm run test:webhook   # Person C Paystack idempotency + HMAC checks
+npm run test:sim       # both (also runs in CI)
+```
+
+Local clock past cutoff (dev only; ignored when `NODE_ENV=production`):
+
+```bash
+curl -sS "http://localhost:3000/api/cron/sync?at=2026-10-29T18:00:00.000Z"
+# with CRON_SECRET set: Authorization: Bearer $CRON_SECRET
+```
+
+Browser end-to-end (places an order, confirms, marks paid, reorders by phone, skips/cancels a standing order, approves a reminder and opens WhatsApp, exports CSV) with screenshots:
 
 ```bash
 # SESSION_SECRET must be 32+ characters for `next start`. Use the same DEV_STAFF_PASSWORD for the server and the test.
@@ -109,7 +124,7 @@ BASE_URL=http://localhost:3000 DEV_STAFF_PASSWORD=dev-only SHOTS=e2e/shots npm r
 - The batch desk requires the staff session. With `DATABASE_URL` set, login reads `staff_users` via `getStaffByUsername`. `DEV_STAFF_PASSWORD` is used only when that row is missing, and it is ignored when `VERCEL_ENV=production`.
 - Times are Ghana time (UTC+0). Batch day/cutoff are assumptions until GoodCane confirms.
 - WhatsApp: links only. Sample phone numbers are fake, so wa.me links for sample customers lead nowhere real.
-- Paystack marks a confirmed order paid when the verified charge covers the payable amount (full total, or 50% for Tigernut 2L/4L). A batch is capped at 150 litres (to confirm); `POST /api/orders` returns 409 when full. Unconfirmed requests are cancelled at cutoff by `/api/cron/sync` (hourly on Vercel) and on the next API request. Delivery fees are still to confirm. Pickup clock times are not in WhatsApp messages until GoodCane confirms them.
+- Paystack marks a confirmed order paid when the verified charge covers the payable amount (full total, or 50% for Tigernut 2L/4L). A batch is capped at 150 litres (to confirm); `POST /api/orders` returns 409 when full. Unconfirmed requests are cancelled at cutoff by `/api/cron/sync` (daily 18:00 UTC on Vercel Hobby) and on the next API request. Locally, `?at=` on that route advances the clock when `NODE_ENV` is not production. Delivery fees are still to confirm. Pickup clock times are not in WhatsApp messages until GoodCane confirms them.
 
 ## Docs
 

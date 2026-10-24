@@ -9,9 +9,19 @@ function authorized(req: NextRequest): boolean {
   return header === `Bearer ${secret}`;
 }
 
+/** Local cutoff simulation only. Production always uses the real clock. */
+function nowFrom(req: NextRequest): Date {
+  if (process.env.NODE_ENV === "production") return new Date();
+  const at = req.nextUrl.searchParams.get("at");
+  if (!at) return new Date();
+  const d = new Date(at);
+  return Number.isNaN(d.getTime()) ? new Date() : d;
+}
+
 /**
- * Hourly batch worker. Vercel Cron sends GET with Authorization: Bearer CRON_SECRET.
+ * Daily batch worker (18:00 UTC on Vercel Hobby). GET with Authorization: Bearer CRON_SECRET.
  * Production requires CRON_SECRET. Locally, an unset secret is allowed so you can curl it.
+ * Non-production may pass ?at=ISO to simulate the clock past cutoff.
  */
 async function run(req: NextRequest) {
   await connection();
@@ -22,7 +32,7 @@ async function run(req: NextRequest) {
     return NextResponse.json({ error: "CRON_SECRET is not set." }, { status: 500 });
   }
   try {
-    const result = await mutate((db) => runScheduledSync(db));
+    const result = await mutate((db) => runScheduledSync(db, nowFrom(req)));
     return NextResponse.json({ ok: true, ...result }, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {
     console.error("[cron/sync]", e);

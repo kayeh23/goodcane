@@ -8,6 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "e2e": "node e2e/flow.mjs",
+    "test:cutoff": "npx tsx e2e/cutoff.ts",
+    "test:webhook": "npx tsx e2e/webhook-idempotency.ts",
+    "test:sim": "npm run test:cutoff && npm run test:webhook",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate"
   },
@@ -37,6 +40,7 @@
     "eslint-config-next": "16.4.2",
     "playwright-core": "^1.64.1",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }
