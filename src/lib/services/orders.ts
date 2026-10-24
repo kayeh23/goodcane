@@ -84,7 +84,7 @@ export function createOrder(db: DB, body: Record<string, unknown>, now = new Dat
   const remindersOptIn = body.remindersOptIn === true;
   const repeatWeekly = body.repeatWeekly === true;
 
-  assertBatchCapacity(db, batchDate);
+  assertBatchCapacity(db, batchDate, items);
 
   let customer = customerByPhone(db, phone);
   if (!customer) {
