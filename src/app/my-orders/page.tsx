@@ -1,10 +1,11 @@
-import { Suspense } from "react";
 import MyOrders from "./my-orders";
+import { getCustomerSession } from "@/lib/auth/customer-session";
 
-export default function Page() {
+export const instant = false;
+
+export default async function Page() {
+  const sessionPhone = await getCustomerSession();
   return (
-    <Suspense>
-      <MyOrders />
-    </Suspense>
+    <MyOrders sessionPhone={sessionPhone ?? ""} />
   );
 }
