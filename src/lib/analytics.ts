@@ -1,6 +1,7 @@
 import { ASSUMPTIONS, PRODUCTS, getPickup, getProduct } from "./config";
 import { addWeeks, cutoffFor, nextBatch } from "./dates";
 import { FORECAST_METHOD, forecastFor, standingAppliesTo } from "./services/batch";
+import { getPackingStage, type PackingStage } from "./services/orders";
 import type { DB, Order } from "./types";
 import { fmtPhone, isFirm, isLive, itemsTotal, litresOf, skuKey, unitsOf } from "./util";
 
@@ -19,9 +20,11 @@ export function decorate(db: DB, o: Order) {
     total: itemsTotal(o.items),
     units: unitsOf(o.items),
     fulfilmentLabel: o.fulfilment.type === "pickup" ? `Pickup · ${getPickup(o.fulfilment.pointId)?.name}` : `Delivery · ${o.fulfilment.area}${o.fulfilment.landmark ? ` (${o.fulfilment.landmark})` : ""}`,
+    packingStage: getPackingStage(o),
   };
 }
 export type DecoratedOrder = ReturnType<typeof decorate>;
+export type { PackingStage };
 
 export function overview(db: DB, now = new Date()) {
   const B = nextBatch(now);

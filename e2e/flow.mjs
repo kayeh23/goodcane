@@ -59,7 +59,7 @@ await m.waitForURL(/\/order\//);
 await m.getByText("Request received").waitFor();
 const wa = await m.getByRole("link", { name: "Send to GoodCane on WhatsApp" }).getAttribute("href");
 must(wa.startsWith("https://wa.me/233000000000?text=") && decodeURIComponent(wa).includes("Pre-order request GC-"), "WhatsApp click-to-chat link uses placeholder number + order ref");
-const orderCode = (await m.locator("text=/GC-\\\\d+/" ).first().textContent()).match(/GC-\d+/)[0];
+const orderCode = (await m.locator("text=/GC-\\d+/").first().textContent()).match(/GC-\d+/)[0];
 await shot(m, "mobile-04-order-status");
 log("placed", orderCode);
 
@@ -117,7 +117,7 @@ await m2.getByRole("button", { name: "Not you?" }).click();
 await m2.fill("#lookupphone", "020 000 0005");
 await m2.getByRole("button", { name: "Find my orders" }).click();
 await m2.getByRole("button", { name: "Skip this week" }).click();
-await m2.getByText(/^Skipped /).waitFor();
+await m2.getByText(/^Skipped /).first().waitFor();
 await m2.getByRole("button", { name: "Undo skip" }).waitFor();
 must(await m2.getByText(/Skipping Sat/).isVisible(), "standing order skipped for this week");
 await shot(m2, "mobile-08-standing-skipped");
