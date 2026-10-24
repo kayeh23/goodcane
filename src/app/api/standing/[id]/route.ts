@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { body, handle } from "@/lib/api";
-import { standingAction } from "@/lib/service";
+import { standingAction } from "@/lib/services/orders";
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;

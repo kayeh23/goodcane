@@ -12,7 +12,7 @@ Deep-scan documentation against implementation in the codebase and produce a mis
 
 ## Scope
 
-- **In scope:** Read project markdown docs, route handlers under `src/app/api/`, configurations in `src/lib/config.ts`, types in `src/lib/types.ts`, and business rules in `src/lib/service.ts`. Compare contracts and specifications; list any discrepancies in chat.
+- **In scope:** Read project markdown docs, route handlers under `src/app/api/`, configurations in `src/lib/config.ts`, types in `src/lib/types.ts`, and business rules in `src/lib/services/`. Compare contracts and specifications; list any discrepancies in chat.
 - **Out of scope:** Modifying source files, editing tests or configs, modifying markdown docs, fixing mismatches, writing report files to disk.
 
 ## Sources
@@ -26,7 +26,7 @@ Deep-scan documentation against implementation in the codebase and produce a mis
 ### Source B: Code Implementation
 1. `src/lib/config.ts` (Products, sizes, prices, pickup locations, ASSUMPTIONS)
 2. `src/lib/types.ts` (OrderStatus, Order, Customer, StandingOrder, Reminder, ForecastSnapshot)
-3. `src/lib/service.ts` (State machine transitions, validation logic, cutoff checks)
+3. `src/lib/services/` (State machine transitions, validation logic, cutoff checks)
 4. `src/app/api/**/route.ts` (Next.js route handlers and parameter bindings)
 
 ## Scan Procedure
