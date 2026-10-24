@@ -109,6 +109,15 @@ All 3 developers execute `git pull origin main` once this commit lands.
 | **Person B (Trust)** | `feat/B-auth-and-otp` | NextAuth/Iron-session for staff, Arkesel/Hubtel SMS OTP client |
 | **Person C (Channels)** | `feat/C-payments-gateway` | Paystack/Hubtel MoMo checkout API client + webhook endpoint |
 
+### Status (return to this plan)
+
+Phase 1 is on `main`. This branch is Person A's Phase 2 database engine with those `main` fixes merged in. **STOP after this push** — do not start capacity, cron, or packing (Phase 3/5).
+
+**Person A status:** Schema, Drizzle client (pooled `pg` on `DATABASE_URL`), `staff_users`, and repo methods are in `src/lib/db`. Neon project `soft-block-48919425` branch `production` is linked (`.neon`, `neon.ts`). If `DATABASE_URL` is unset, the JSON store still runs. Schema is applied with `npm run db:push` (direct `DATABASE_URL_UNPOOLED`). Paystack's paid update goes through `mutate()`, which writes Postgres when `DATABASE_URL` is set.
+
+* **Person B:** `/api/admin/*` and the batch desk accept only the `goodcane_staff` iron-session. The demo passcode cookie does not authorize those routes, and desk logout calls `POST /api/auth/logout`. A wrong OTP guess keeps the original 5-minute TTL. `.env.example` has placeholders, not a session key or password. `findStaffByUsername` reads `getStaffByUsername()` first. `DEV_STAFF_PASSWORD` applies only when that row is missing, and it is ignored when `VERCEL_ENV=production`.
+* **Person C:** Paystack initialize, webhook, and the Mobile Money button are included. Payment starts only for `confirmed` orders. The webhook requires `x-paystack-signature` whenever a Paystack secret is set, then re-checks the charge with Paystack and refuses short, cancelled, or unconfirmed payments. The server builds the return URL. A 50% Tigernut 2L/4L deposit is not described as paid in full. Guessed pickup clock times were not copied in; catalogue hours are still unconfirmed. "Open in WhatsApp" on the desk already logs `opened_whatsapp` via `reminderAction` in `src/lib/services/batch.ts`.
+
 ### Person A Tasks (Hours 2 – 8)
 1. Provision cloud PostgreSQL (Supabase / Neon / AWS RDS).
 2. Install ORM: `npm i drizzle-orm pg @types/pg` + `npm i -D drizzle-kit`.

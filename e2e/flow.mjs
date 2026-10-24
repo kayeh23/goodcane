@@ -6,7 +6,9 @@ import fs from "node:fs";
 
 const BASE = process.env.BASE_URL || "http://localhost:3000";
 const SHOTS = process.env.SHOTS || "e2e/shots";
-const PASS = process.env.DEMO_PASSCODE || "goodcane-demo";
+const STAFF_USER = process.env.DEV_STAFF_USERNAME || "admin";
+const STAFF_PASS = process.env.DEV_STAFF_PASSWORD || "";
+if (!STAFF_PASS) throw new Error("Set DEV_STAFF_PASSWORD to the same value the server was started with.");
 fs.mkdirSync(SHOTS, { recursive: true });
 const log = (...a) => console.log("✓", ...a);
 const must = (cond, msg) => {
@@ -24,10 +26,11 @@ const shot = (page, name, fullPage = true) => page.screenshot({ path: `${SHOTS}/
 const admin = await desk.newPage();
 await admin.goto(`${BASE}/business`);
 await admin.waitForURL(/\/business\/login/);
-must(await admin.getByText(PASS).isVisible(), "login screen shows demo passcode");
+must(await admin.getByLabel("Username").isVisible(), "login screen shows staff username");
 await shot(admin, "desktop-00-login", false);
-await admin.fill("#passcode", PASS);
-await admin.getByRole("button", { name: "Open batch desk" }).click();
+await admin.fill("#username", STAFF_USER);
+await admin.fill("#password", STAFF_PASS);
+await admin.getByRole("button", { name: "Sign in" }).click();
 await admin.waitForURL(`${BASE}/business`);
 await admin.evaluate(() => fetch("/api/admin/reset", { method: "POST" }));
 
@@ -149,8 +152,9 @@ await admin.getByText("Forecast vs actual").waitFor();
 await shot(admin, "desktop-04-metrics");
 const mb = await mobile.newPage();
 await mb.goto(`${BASE}/business/login`);
-await mb.fill("#passcode", PASS);
-await mb.getByRole("button", { name: "Open batch desk" }).click();
+await mb.fill("#username", STAFF_USER);
+await mb.fill("#password", STAFF_PASS);
+await mb.getByRole("button", { name: "Sign in" }).click();
 await mb.getByText("Demand by product & size").waitFor();
 await shot(mb, "mobile-07-business-overview", false);
 

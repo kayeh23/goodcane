@@ -8,8 +8,8 @@
  *
  * Optional: set UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN (or the
  * Vercel KV equivalents KV_REST_API_URL + KV_REST_API_TOKEN) to persist the
- * same JSON document in Upstash Redis. For a real pilot, swap this module for
- * Postgres tables with the same read/write contract.
+ * same JSON document in Upstash Redis. Prefer DATABASE_URL (Postgres via
+ * src/lib/db) when running a real batch week.
  */
 import type { DB } from "../types";
 import { buildSeed } from "../seed";

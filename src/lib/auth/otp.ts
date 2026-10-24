@@ -53,16 +53,21 @@ function memoryKey(phone: string) {
   return KEY_PREFIX + phone;
 }
 
-async function saveOtp(phone: string, record: OtpRecord): Promise<void> {
+async function saveOtp(phone: string, record: OtpRecord, keepTtl = false): Promise<void> {
   const redis = getRedis();
+  const key = KEY_PREFIX + phone;
   if (redis) {
-    await redis.set(KEY_PREFIX + phone, JSON.stringify(record), { ex: OTP_TTL_SECONDS });
+    let ex = OTP_TTL_SECONDS;
+    if (keepTtl) {
+      const ttl = await redis.ttl(key);
+      if (ttl > 0) ex = ttl;
+    }
+    await redis.set(key, JSON.stringify(record), { ex });
     return;
   }
-  memoryStore.set(memoryKey(phone), {
-    record,
-    expiresAt: Date.now() + OTP_TTL_SECONDS * 1000,
-  });
+  const existing = memoryStore.get(memoryKey(phone));
+  const expiresAt = keepTtl && existing ? existing.expiresAt : Date.now() + OTP_TTL_SECONDS * 1000;
+  memoryStore.set(memoryKey(phone), { record, expiresAt });
 }
 
 async function readOtp(phone: string): Promise<OtpRecord | null> {
@@ -179,7 +184,7 @@ export async function verifyOTP(phone: string, code: string): Promise<boolean> {
   if (record.attempts >= MAX_ATTEMPTS) {
     await deleteOtp(to); // lockout after the 5th wrong attempt
   } else {
-    await saveOtp(to, record);
+    await saveOtp(to, record, true);
   }
   return false;
 }

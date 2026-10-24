@@ -2,12 +2,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getIronSession, nextProxyCookies } from "iron-session";
 import { sessionOptions, type StaffSession } from "@/lib/auth/session";
 
-// Person A's admin login/logout must stay reachable without a staff
-// session, otherwise their own login endpoint 401s itself.
-// TODO: At the hour-14 integration, revisit the /api/admin/login|logout
-// exemptions once Person A's desk uses the staff session.
-const ADMIN_PUBLIC_PATHS = new Set(["/api/admin/login", "/api/admin/logout"]);
-
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const res = NextResponse.next();
@@ -17,9 +11,10 @@ export async function proxy(req: NextRequest) {
   );
   const authed = Boolean(session.username);
 
-  // /api/admin/* -> 401 JSON when unauthenticated
+  // Desk data uses the staff session from /api/auth/login. The old passcode
+  // cookie is not a second door.
   if (pathname.startsWith("/api/admin")) {
-    if (authed || ADMIN_PUBLIC_PATHS.has(pathname)) return res;
+    if (authed) return res;
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }
 
@@ -29,6 +24,7 @@ export async function proxy(req: NextRequest) {
     const loginUrl = req.nextUrl.clone();
     loginUrl.pathname = "/business/login";
     loginUrl.search = "";
+    loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);
   }
 

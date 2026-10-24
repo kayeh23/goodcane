@@ -1,6 +1,7 @@
 import { compare, hashSync } from "bcryptjs";
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
+import { getStaffByUsername } from "../db";
 import { sessionOptions, type StaffSession } from "./session";
 
 /** Memoized bcrypt hash of DEV_STAFF_PASSWORD (dev only, see findStaffByUsername). */
@@ -14,21 +15,21 @@ type StaffRecord = {
 };
 
 /**
- * The ONE function that touches data. Everything else in this file
- * goes through it, so at the hour-14 merge only this function needs
- * to be swapped for Person A's staff_users repository.
- *
- * TODO(hour-14 merge): replace this dev implementation with a lookup
- * against Person A's `staff_users` repository (e.g. findStaffByUsername
- * querying the DB). Keep the signature: async (username) => StaffRecord | null.
- *
- * Dev behaviour: single user "admin" whose password is DEV_STAFF_PASSWORD.
- * Returns null in production so the backdoor can never ship live.
+ * Staff login lookup. A `staff_users` row wins when Postgres is configured.
+ * DEV_STAFF_PASSWORD remains only when that row is missing, and never when
+ * VERCEL_ENV=production.
  */
 export async function findStaffByUsername(
   username: string
 ): Promise<StaffRecord | null> {
-  if (process.env.NODE_ENV === "production") return null;
+  const row = await getStaffByUsername(username);
+  if (row) {
+    const role = row.role === "admin" || row.role === "staff" ? row.role : null;
+    if (!role) return null;
+    return { username: row.username, role, passwordHash: row.passwordHash };
+  }
+
+  if (process.env.VERCEL_ENV === "production") return null;
   if (username !== "admin") return null;
 
   const devPassword = process.env.DEV_STAFF_PASSWORD;

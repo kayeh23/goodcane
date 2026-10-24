@@ -1,5 +1,6 @@
 import { getIronSession, type SessionOptions } from "iron-session";
 import { cookies } from "next/headers";
+import { sessionPassword } from "./session";
 
 /**
  * Customer session: created only after a phone number has been verified
@@ -16,7 +17,9 @@ const TWO_HOURS_IN_SECONDS = 2 * 60 * 60;
 
 export const customerSessionOptions: SessionOptions = {
   cookieName: "goodcane_customer",
-  password: process.env.SESSION_SECRET ?? "",
+  get password() {
+    return sessionPassword();
+  },
   ttl: TWO_HOURS_IN_SECONDS,
   cookieOptions: {
     httpOnly: true,
