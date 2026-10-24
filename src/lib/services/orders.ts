@@ -215,8 +215,33 @@ export function businessOrderAction(db: DB, orderId: string, action: string, rea
       o.notifiedAt = now.toISOString();
       pushEvent(o, o.status, "business", "WhatsApp confirmation opened (business sends manually)", now);
       break;
+    case "pack_stage": {
+      const stage = String(reason || "");
+      if (!["pending", "bottled", "packed", "collected"].includes(stage)) {
+        throw new AppError("Invalid packing stage.");
+      }
+      pushEvent(o, o.status, "business", `packing:${stage}`, now);
+      break;
+    }
     default:
       throw new AppError("Unknown action.");
   }
   return o;
 }
+
+export type PackingStage = "pending" | "bottled" | "packed" | "collected";
+
+export function getPackingStage(o: Order): PackingStage {
+  if (!o.events || !Array.isArray(o.events)) return "pending";
+  for (let i = o.events.length - 1; i >= 0; i--) {
+    const e = o.events[i];
+    if (e.note?.startsWith("packing:")) {
+      const stage = e.note.slice("packing:".length);
+      if (["pending", "bottled", "packed", "collected"].includes(stage)) {
+        return stage as PackingStage;
+      }
+    }
+  }
+  return "pending";
+}
+

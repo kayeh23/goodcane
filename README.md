@@ -112,6 +112,7 @@ BASE_URL=http://localhost:3000 DEV_STAFF_PASSWORD=dev-only SHOTS=e2e/shots npm r
 ## Docs
 
 - [docs/24_HOUR_SPRINT_PLAN.md](docs/24_HOUR_SPRINT_PLAN.md) — 24-hour sprint plan for 3 developers (concurrent setup, DB, auth/OTP, MoMo payments)
+- [docs/PACKING.md](docs/PACKING.md) — Kitchen pack sheet guide for Saturday batch operations and location tables
 - [docs/PAYMENTS.md](docs/PAYMENTS.md) — Paystack Mobile Money & Card gateway integration guide
 - [docs/WRITEUP.md](docs/WRITEUP.md) — customer problem, TikTok evidence, assumptions checklist, approach, rollout plan (incl. WhatsApp levels)
 - [docs/MEASUREMENT.md](docs/MEASUREMENT.md) — metric definitions, formulas, hypotheses, 4-week pilot
