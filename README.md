@@ -42,7 +42,7 @@ Sample customer phones to try in **My orders**: `020 000 0001` (standing order, 
 | `/business/reminders` | Approval queue + WhatsApp click-to-chat |
 | `/business/metrics` | Pilot scorecard |
 
-API (JSON): `GET /api/batch`, `POST /api/orders`, `GET /api/orders/[id]`, `POST /api/orders/[id]/reorder`, `POST /api/orders/[id]/cancel`, `POST /api/lookup`, `POST /api/standing/[id]` (`skip|unskip|pause|resume|cancel`), `POST /api/reminders/preferences`, and passcode-protected `/api/admin/*` (`overview`, `orders`, `orders/[id]` (`confirm|pay|cancel|notified`), `reminders`, `reminders/[id]` (`approve|dismiss|open`), `metrics`, `export`, `reset`, `login`, `logout`).
+API (JSON): `GET /api/batch`, `POST /api/orders`, `GET /api/orders/[id]`, `POST /api/orders/[id]/reorder`, `POST /api/orders/[id]/cancel`, `POST /api/lookup`, `POST /api/standing/[id]` (`skip|unskip|pause|resume|cancel`), `POST /api/reminders/preferences`, `POST /api/payments/initialize`, `POST /api/webhooks/paystack`, and passcode-protected `/api/admin/*` (`overview`, `orders`, `orders/[id]` (`confirm|pay|cancel|notified`), `reminders`, `reminders/[id]` (`approve|dismiss|open`), `metrics`, `export`, `reset`, `login`, `logout`).
 
 ## Run locally
 
@@ -75,6 +75,7 @@ BASE_URL=http://localhost:3000 SHOTS=e2e/shots npm run e2e   # needs Chrome; set
 - `src/lib/analytics.ts` — dashboard, metrics, CSV.
 - `src/lib/seed.ts` — deterministic labelled sample data (28 sample customers, 8 past batches + current).
 - `src/lib/store/index.ts` — **the only storage module** (swappable).
+- `src/lib/payments/paystack.ts` — Paystack Mobile Money & Card adapter.
 - `src/lib/whatsapp.ts` — wa.me link builders (no API).
 
 ### Storage & known limitations
@@ -90,6 +91,7 @@ BASE_URL=http://localhost:3000 SHOTS=e2e/shots npm run e2e   # needs Chrome; set
 ## Docs
 
 - [docs/24_HOUR_SPRINT_PLAN.md](docs/24_HOUR_SPRINT_PLAN.md) — 24-hour sprint plan for 3 developers (concurrent setup, DB, auth/OTP, MoMo payments)
+- [docs/PAYMENTS.md](docs/PAYMENTS.md) — Paystack Mobile Money & Card gateway integration guide
 - [docs/WRITEUP.md](docs/WRITEUP.md) — customer problem, TikTok evidence, assumptions checklist, approach, rollout plan (incl. WhatsApp levels)
 - [docs/MEASUREMENT.md](docs/MEASUREMENT.md) — metric definitions, formulas, hypotheses, 4-week pilot
 - [docs/VIDEO_SCRIPT.md](docs/VIDEO_SCRIPT.md) — ~2 min demo shot list

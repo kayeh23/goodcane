@@ -23,13 +23,32 @@ export function itemsText(items: LineItem[]) {
   return items.map((i) => `${i.qty}× ${getProduct(i.productId)?.name ?? i.productId} ${i.sizeId}`).join(", ");
 }
 
+/** Formats pickup or delivery window based on the chosen collection point. */
+export function getFulfilmentTimeWindow(fulfilmentLabel: string): string {
+  const lower = fulfilmentLabel.toLowerCase();
+  if (lower.includes("adenta")) return "Saturday 10:00 AM - 4:00 PM";
+  if (lower.includes("parks") || lower.includes("gardens")) return "Saturday 9:00 AM - 2:00 PM (1st & 3rd Sat)";
+  if (lower.includes("butterfly")) return "Saturday 10:00 AM - 3:00 PM";
+  if (lower.includes("delivery")) return "Saturday 11:00 AM - 3:00 PM (Dispatch)";
+  return "Saturday 10:00 AM - 4:00 PM";
+}
+
 /** Customer -> GoodCane: share an order request. */
-export function orderToBusinessLink(o: { code: string; items: LineItem[]; batchDate: string; fulfilmentLabel: string; name: string; total: number }) {
+export function orderToBusinessLink(o: {
+  code: string;
+  items: LineItem[];
+  batchDate: string;
+  fulfilmentLabel: string;
+  name: string;
+  total: number;
+  status?: string;
+}) {
+  const timeWindow = getFulfilmentTimeWindow(o.fulfilmentLabel);
   const text = [
     `Hi GoodCane! Pre-order request ${o.code}`,
     `Batch: ${fmtBatch(o.batchDate)}`,
     `Items: ${itemsText(o.items)}`,
-    `Collection: ${o.fulfilmentLabel}`,
+    `Collection: ${o.fulfilmentLabel} (${timeWindow})`,
     `Name: ${o.name}`,
     `Estimated total: ${cedis(o.total)} (prices to confirm)`,
   ].join("\n");
@@ -37,12 +56,27 @@ export function orderToBusinessLink(o: { code: string; items: LineItem[]; batchD
 }
 
 /** GoodCane -> customer: confirmation note (business presses Send). */
-export function confirmationText(o: { code: string; items: LineItem[]; batchDate: string; fulfilmentLabel: string; customerName: string; total: number }) {
+export function confirmationText(o: {
+  code: string;
+  items: LineItem[];
+  batchDate: string;
+  fulfilmentLabel: string;
+  customerName: string;
+  total: number;
+  status?: string;
+}) {
+  const timeWindow = getFulfilmentTimeWindow(o.fulfilmentLabel);
+  const paymentStatus =
+    o.status === "paid"
+      ? "Payment: Paid in full via Mobile Money."
+      : `Total: ${cedis(o.total)}. Payment pending (Pay with Mobile Money or on collection).`;
+
   return [
-    `Hi ${o.customerName}, GoodCane here 🌿 Your pre-order ${o.code} is CONFIRMED for ${fmtBatch(o.batchDate)}.`,
+    `Hi ${o.customerName}, GoodCane here. Your pre-order ${o.code} is CONFIRMED for ${fmtBatch(o.batchDate)}.`,
     `Items: ${itemsText(o.items)}`,
     `Collection: ${o.fulfilmentLabel}`,
-    `Total: ${cedis(o.total)}. Payment details to follow.`,
+    `Time window: ${timeWindow}`,
+    paymentStatus,
     `Good Juice. Beautiful People.`,
   ].join("\n");
 }
