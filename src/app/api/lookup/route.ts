@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { body, handle } from "@/lib/api";
 import { decorate } from "@/lib/analytics";
-import { lookup } from "@/lib/service";
+import { lookup } from "@/lib/services/customer";
 
 /** Phone lookup (POST so the number isn't in URLs/logs). Prototype only: a pilot should add an SMS one-time code. */
 export async function POST(req: NextRequest) {

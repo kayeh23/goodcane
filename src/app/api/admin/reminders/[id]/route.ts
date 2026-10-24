@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { body, handle } from "@/lib/api";
-import { reminderAction } from "@/lib/service";
+import { reminderAction } from "@/lib/services/batch";
 
 /** Approve = mark "sent (simulated)". This prototype never sends SMS/WhatsApp. */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {

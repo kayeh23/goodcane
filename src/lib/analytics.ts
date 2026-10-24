@@ -1,6 +1,6 @@
 import { ASSUMPTIONS, PRODUCTS, getPickup, getProduct } from "./config";
 import { addWeeks, cutoffFor, nextBatch } from "./dates";
-import { FORECAST_METHOD, forecastFor, standingAppliesTo } from "./service";
+import { FORECAST_METHOD, forecastFor, standingAppliesTo } from "./services/batch";
 import type { DB, Order } from "./types";
 import { fmtPhone, isFirm, isLive, itemsTotal, litresOf, skuKey, unitsOf } from "./util";
 

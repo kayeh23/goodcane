@@ -34,6 +34,15 @@ To prevent file collision during concurrent branch development:
 
 **Goal:** Establish the repo, branch protections, CI, and eliminate merge conflicts by splitting `service.ts` before feature branches diverge.
 
+**Status:** Step 1.1 done (`main` on origin). Step 1.2 done (existing workflow [`.github/workflows/ci-cd.yml`](../.github/workflows/ci-cd.yml) — do not add a second `ci.yml`). Step 1.3 done in code (`src/lib/service.ts` removed). **STOP for B and C until this is merged to `main`**, then they `git pull origin main` and open `feat/B-auth-and-otp` and `feat/C-payments-gateway`. Person A then starts Phase 2 on `feat/A-database-engine`.
+
+### Phase 1 handoff (B and C may start after `main` has this split)
+
+- **Person B owns:** `src/lib/auth/**` (create), `src/lib/services/customer.ts`, `src/lib/services/catalogue.ts` (create if needed), `src/lib/config.ts`, `src/app/business/login/**`, `src/app/checkout/**`, `src/app/my-orders/**`, `src/app/api/auth/**`, `src/app/api/lookup/**`, `src/app/shop.tsx`.
+- **Person C owns:** `src/lib/payments/**` (create), `src/lib/services/payments.ts`, `src/lib/services/messaging.ts` (create if needed), `src/lib/whatsapp.ts`, `src/app/api/payments/**`, `src/app/api/webhooks/**`, `src/app/order/[id]/**`, `src/components/whatsapp-button.tsx`.
+- **Shared read-only:** `src/lib/types.ts`. Do not add fields without a tiny shared PR.
+- **Do not edit:** `src/lib/db/**`, `src/lib/services/batch.ts`, `src/lib/services/capacity.ts`, `src/lib/services/cron.ts`, `src/app/api/admin/**`, `src/app/api/cron/**`, `src/app/business/(desk)/**`.
+
 ### Step 1.1: Git & Repository Setup (Lead / Person A)
 ```bash
 # Initialize and push to organization
@@ -75,14 +84,17 @@ To prevent all 3 developers from conflicting on `src/lib/service.ts`, Person A i
 ```
 src/lib/
 ├── types.ts              <-- Core domain types (frozen contracts)
-├── config.ts             <-- Config, pricing, pickup spots
+├── errors.ts             <-- Shared AppError
+├── config.ts             <-- Config, pricing, pickup spots (Person B)
 ├── dates.ts              <-- Timezone & cutoff utilities
 ├── services/
-│   ├── batch.ts          <-- Person A owns: sync, capacity, forecast
-│   ├── customer.ts       <-- Person B owns: customer creation, lookup, OTP
-│   ├── orders.ts         <-- Shared/Person B: createOrder, cancel, reorder
-│   └── payments.ts       <-- Person C owns: status changes to 'paid', deposit rules
-└── db/                   <-- Person A owns: repository interfaces
+│   ├── batch.ts          <-- Person A: sync, forecast, reminder queue
+│   ├── capacity.ts       <-- Person A: stub (enforced in Phase 3)
+│   ├── cron.ts           <-- Person A: stub (hourly route in Phase 3)
+│   ├── customer.ts       <-- Person B: lookup, reminder opt-in
+│   ├── orders.ts         <-- Shared/Person B: createOrder, cancel, reorder, confirm
+│   └── payments.ts       <-- Person C: markPaid (webhook in Phase 2+)
+└── db/                   <-- Person A: repo wrapping JSON store until Postgres
 ```
 
 All 3 developers execute `git pull origin main` once this commit lands.
