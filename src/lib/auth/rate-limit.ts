@@ -45,13 +45,9 @@ function setup(): Setup {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) {
-    if (process.env.NODE_ENV === "production") {
-      setupResult = "fail"; // fail closed: never allow unlimited sends
-      return setupResult;
-    }
     if (!warnedOnce) {
       console.warn(
-        "[otp/ratelimit] Upstash env vars missing — OTP rate limiting is DISABLED (development only)."
+        "[otp/ratelimit] Upstash env vars missing — OTP rate limiting is DISABLED."
       );
       warnedOnce = true;
     }

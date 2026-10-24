@@ -77,7 +77,7 @@ export default function PhoneVerify({
           text: `Too many requests. Please wait ${seconds} seconds before trying again.`,
         });
       } else {
-        setMessage({ kind: "err", text: "Couldn’t send the code. Check your connection and try again." });
+        setMessage({ kind: "err", text: (e as Error).message || "Couldn’t send the code. Check your connection and try again." });
       }
     } finally {
       setLoading(false);
