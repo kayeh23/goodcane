@@ -1,18 +1,28 @@
-import { AppError } from "../service";
-import type { DB, LineItem, Order } from "../types";
+import { AppError } from "../errors";
+import type { DB, LineItem, Order, OrderStatus } from "../types";
 import { itemsTotal } from "../util";
 
-export interface PaymentCalculation {
-  totalInCedis: number;
-  payableInCedis: number;
-  isDeposit: boolean;
-  depositPercent: number;
+function pushEvent(
+  o: { events: { at: string; status: OrderStatus | "created"; by: "customer" | "business" | "system"; note?: string }[] },
+  status: OrderStatus | "created",
+  by: "customer" | "business" | "system",
+  note?: string,
+  at = new Date()
+) {
+  o.events.push({ at: at.toISOString(), status, by, note });
 }
 
-/**
- * Checks whether an order contains large-format made-to-order items (Tigernut 2L or 4L).
- * Per the sprint plan, large-format items require a 50% non-refundable deposit.
- */
+/** Manual mark-paid (desk), when Paystack is not how this order was settled. */
+export function markPaid(db: DB, orderId: string, now = new Date()) {
+  const o = db.orders.find((x) => x.id === orderId);
+  if (!o) throw new AppError("Order not found.", 404);
+  if (o.status !== "confirmed") throw new AppError(`Can't move a ${o.status} order to paid.`, 409);
+  o.status = "paid";
+  pushEvent(o, "paid", "business", "Marked paid manually", now);
+  return o;
+}
+
+/** Tigernut 2L and 4L take a 50% deposit. Other lines are paid in full. */
 export function hasLargeFormatItem(items: LineItem[]): boolean {
   return items.some(
     (item) =>
@@ -21,49 +31,38 @@ export function hasLargeFormatItem(items: LineItem[]): boolean {
   );
 }
 
-/**
- * Calculates payable amount in GHS Cedis, factoring in large-format deposit rules.
- */
+export interface PaymentCalculation {
+  totalInCedis: number;
+  payableInCedis: number;
+  payablePesewas: number;
+  isDeposit: boolean;
+  depositPercent: number;
+}
+
 export function calculatePaymentAmount(items: LineItem[]): PaymentCalculation {
-  const total = itemsTotal(items);
-  const requiresDeposit = hasLargeFormatItem(items);
-
-  if (requiresDeposit) {
-    const depositAmount = Math.round((total * 0.5) * 100) / 100;
-    return {
-      totalInCedis: total,
-      payableInCedis: depositAmount,
-      isDeposit: true,
-      depositPercent: 50,
-    };
-  }
-
+  const totalInCedis = itemsTotal(items);
+  const totalPesewas = Math.round(totalInCedis * 100);
+  const isDeposit = hasLargeFormatItem(items);
+  const payablePesewas = isDeposit ? Math.round(totalPesewas / 2) : totalPesewas;
   return {
-    totalInCedis: total,
-    payableInCedis: total,
-    isDeposit: false,
-    depositPercent: 100,
+    totalInCedis,
+    payableInCedis: payablePesewas / 100,
+    payablePesewas,
+    isDeposit,
+    depositPercent: isDeposit ? 50 : 100,
   };
 }
 
 /**
- * Validates an order's readiness for payment and returns customer and amount context.
+ * Payment can start only after staff has confirmed the order.
+ * A requested or cancelled order is not sent to Paystack.
  */
 export function getOrderForPayment(db: DB, orderId: string) {
   const order = db.orders.find((o) => o.id === orderId);
-  if (!order) {
-    throw new AppError("Order not found.", 404);
-  }
-
-  if (order.status === "cancelled") {
-    throw new AppError("This order was cancelled and cannot be paid.", 409);
-  }
-
-  if (order.status === "paid") {
-    throw new AppError("This order has already been paid.", 409);
-  }
-
-  if (order.status !== "confirmed" && order.status !== "requested") {
+  if (!order) throw new AppError("Order not found.", 404);
+  if (order.status === "cancelled") throw new AppError("This order was cancelled and cannot be paid.", 409);
+  if (order.status === "paid") throw new AppError("This order has already been paid.", 409);
+  if (order.status !== "confirmed") {
     throw new AppError(`Cannot initialize payment for an order with status: ${order.status}.`, 409);
   }
 
@@ -83,38 +82,42 @@ export interface RecordPaymentParams {
   orderId: string;
   reference: string;
   channel?: string;
-  amountPaidInCedis: number;
+  amountPaidPesewas: number;
   now?: Date;
 }
 
-/**
- * Updates order status to 'paid' idempotently upon successful gateway payment.
- */
-export function recordPaymentSuccess(
-  db: DB,
-  params: RecordPaymentParams
-): { order: Order; alreadyPaid: boolean } {
-  const order = db.orders.find((o) => o.id === params.orderId);
-  if (!order) {
-    throw new AppError(`Order ${params.orderId} not found.`, 404);
-  }
+export type RecordPaymentResult =
+  | { ok: true; order: Order; alreadyPaid: boolean }
+  | { ok: false; reason: string };
 
-  // Idempotency: if already paid, do not re-apply status or duplicate events
-  if (order.status === "paid") {
-    return { order, alreadyPaid: true };
+/**
+ * Marks a confirmed order paid when the verified amount covers the payable
+ * (full total, or the 50% large-format deposit). A short or cancelled payment
+ * does not change the order.
+ */
+export function recordPaymentSuccess(db: DB, params: RecordPaymentParams): RecordPaymentResult {
+  const order = db.orders.find((o) => o.id === params.orderId);
+  if (!order) return { ok: false, reason: "Order not found." };
+  if (order.status === "paid") return { ok: true, order, alreadyPaid: true };
+  if (order.status === "cancelled") return { ok: false, reason: "Order is cancelled." };
+  if (order.status !== "confirmed") return { ok: false, reason: `Order is ${order.status}, not confirmed.` };
+
+  const payment = calculatePaymentAmount(order.items);
+  if (params.amountPaidPesewas < payment.payablePesewas) {
+    return {
+      ok: false,
+      reason: `Payment is short. Expected at least ${payment.payablePesewas} pesewas.`,
+    };
   }
 
   const now = params.now ?? new Date();
   const channelNote = params.channel ? ` via ${params.channel}` : "";
-  const note = `Payment received (${params.amountPaidInCedis.toFixed(2)} GHS${channelNote}, ref: ${params.reference})`;
+  const amount = (params.amountPaidPesewas / 100).toFixed(2);
+  const note = payment.isDeposit
+    ? `Deposit received (${amount} GHS${channelNote}, ref: ${params.reference}). Balance remains due.`
+    : `Payment received (${amount} GHS${channelNote}, ref: ${params.reference})`;
 
   order.status = "paid";
-  order.events.push({
-    at: now.toISOString(),
-    status: "paid",
-    by: "system",
-    note,
-  });
-
-  return { order, alreadyPaid: false };
+  pushEvent(order, "paid", "system", note, now);
+  return { ok: true, order, alreadyPaid: false };
 }

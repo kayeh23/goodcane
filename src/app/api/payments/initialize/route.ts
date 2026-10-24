@@ -1,26 +1,28 @@
-import type { NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { body, handle } from "@/lib/api";
-import { AppError } from "@/lib/service";
 import { initializeTransaction } from "@/lib/payments/paystack";
 import { getOrderForPayment } from "@/lib/services/payments";
 
 /**
- * Payment initiation endpoint for Mobile Money and Card pre-orders.
- * Validates order eligibility and calls Paystack to generate a checkout authorization session.
+ * Starts Mobile Money or card checkout for a confirmed order.
+ * The Paystack return URL is built here. The request body cannot set it.
+ *
+ * POST { orderId, customerEmail? }
+ * 200 { authorization_url, access_code, reference, order_id, order_code, amount, total, is_deposit }
  */
 export async function POST(req: NextRequest) {
   const payload = await body(req);
   const orderId = String(payload.orderId ?? "").trim();
   const customerEmail = typeof payload.customerEmail === "string" ? payload.customerEmail.trim() : undefined;
-  const callbackUrl = typeof payload.callbackUrl === "string" ? payload.callbackUrl.trim() : undefined;
 
   if (!orderId) {
-    throw new AppError("Missing required parameter: orderId.", 400);
+    return NextResponse.json({ error: "Missing required parameter: orderId." }, { status: 400 });
   }
+
+  const callbackUrl = `${req.nextUrl.origin}/order/${orderId}`;
 
   return handle(async (db) => {
     const context = getOrderForPayment(db, orderId);
-
     const initResult = await initializeTransaction({
       orderId: context.order.id,
       orderCode: context.order.code,
@@ -37,6 +39,7 @@ export async function POST(req: NextRequest) {
       order_id: context.order.id,
       order_code: context.order.code,
       amount: context.payableInCedis,
+      total: context.totalInCedis,
       is_deposit: context.isDeposit,
     };
   });

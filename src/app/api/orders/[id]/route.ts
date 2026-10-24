@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { handle } from "@/lib/api";
 import { decorate } from "@/lib/analytics";
-import { AppError } from "@/lib/service";
+import { AppError } from "@/lib/errors";
 
 /** Public order status. Order ids are unguessable; only first name is returned. */
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {

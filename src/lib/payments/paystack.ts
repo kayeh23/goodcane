@@ -32,9 +32,6 @@ export interface PaystackVerifyResult {
 
 const PAYSTACK_API_BASE = "https://api.paystack.co";
 
-/**
- * Returns Paystack secrets from environment variables.
- */
 export function getPaystackConfig() {
   const secretKey = process.env.PAYSTACK_SECRET_KEY || "";
   const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || "";
@@ -48,10 +45,6 @@ export function getPaystackConfig() {
   };
 }
 
-/**
- * Normalises phone number to generate a fallback email for Paystack,
- * which requires an email field for all transaction initializations.
- */
 function fallbackEmail(phone: string, orderCode: string): string {
   const digits = phone.replace(/\D/g, "");
   const identifier = digits.length > 0 ? digits : orderCode.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -59,19 +52,17 @@ function fallbackEmail(phone: string, orderCode: string): string {
 }
 
 /**
- * Initializes a transaction on Paystack for Ghana Mobile Money and Card channels.
+ * Initializes a Paystack transaction for Ghana Mobile Money and card.
+ * Without a secret key, development returns a local simulated checkout URL.
  */
-export async function initializeTransaction(
-  input: InitializePaymentInput
-): Promise<InitializePaymentResult> {
+export async function initializeTransaction(input: InitializePaymentInput): Promise<InitializePaymentResult> {
   const { secretKey, isConfigured } = getPaystackConfig();
 
   if (!isConfigured) {
     if (process.env.NODE_ENV === "production") {
       throw new Error("Payment gateway configuration missing: PAYSTACK_SECRET_KEY is not defined.");
     }
-    // Development sandbox simulation if keys are omitted
-    const simRef = `sim_${input.orderCode.toLowerCase()}_${Date.now()}`;
+    const simRef = `sim_${input.orderCode.toLowerCase().replace(/[^a-z0-9]/g, "")}_${Date.now()}`;
     return {
       authorizationUrl: `/order/${input.orderId}?simulated_payment=success&reference=${simRef}`,
       accessCode: `sim_access_${Date.now()}`,
@@ -80,9 +71,7 @@ export async function initializeTransaction(
   }
 
   const amountInPesewas = Math.round(input.amountInCedis * 100);
-  if (amountInPesewas <= 0) {
-    throw new Error("Invalid payment amount: must be greater than 0 GHS.");
-  }
+  if (amountInPesewas <= 0) throw new Error("Invalid payment amount: must be greater than 0 GHS.");
 
   const reference = `gc_${input.orderCode.toLowerCase().replace(/[^a-z0-9]/g, "")}_${Date.now()}`;
   const email = input.customerEmail?.trim() || fallbackEmail(input.customerPhone, input.orderCode);
@@ -123,7 +112,6 @@ export async function initializeTransaction(
   });
 
   const body = await response.json();
-
   if (!response.ok || !body.status) {
     const errorMsg = body?.message || "Failed to initialize payment transaction with Paystack.";
     throw new Error(`Paystack error: ${errorMsg}`);
@@ -136,9 +124,6 @@ export async function initializeTransaction(
   };
 }
 
-/**
- * Verifies a transaction status with Paystack using its reference.
- */
 export async function verifyTransaction(reference: string): Promise<PaystackVerifyResult> {
   const { secretKey, isConfigured } = getPaystackConfig();
 
@@ -165,17 +150,14 @@ export async function verifyTransaction(reference: string): Promise<PaystackVeri
   });
 
   const body = await response.json();
-
   if (!response.ok || !body.status) {
     const errorMsg = body?.message || "Failed to verify payment transaction with Paystack.";
     throw new Error(`Paystack error: ${errorMsg}`);
   }
 
   const data = body.data;
-  const isSuccess = data.status === "success";
-
   return {
-    success: isSuccess,
+    success: data.status === "success",
     status: data.status,
     reference: data.reference,
     amountInCedis: (data.amount || 0) / 100,
@@ -186,29 +168,17 @@ export async function verifyTransaction(reference: string): Promise<PaystackVeri
   };
 }
 
-/**
- * Validates the HMAC-SHA512 webhook signature sent in the 'x-paystack-signature' header.
- */
+/** HMAC-SHA512 of the raw body, compared in constant time to x-paystack-signature. */
 export function verifyWebhookSignature(rawBody: string, signature: string | null): boolean {
-  if (!signature) {
-    return false;
-  }
+  if (!signature) return false;
 
   const { webhookSecret } = getPaystackConfig();
-  if (!webhookSecret) {
-    return false;
-  }
+  if (!webhookSecret) return false;
 
-  const computedHash = crypto
-    .createHmac("sha512", webhookSecret)
-    .update(rawBody)
-    .digest("hex");
+  const computedHash = crypto.createHmac("sha512", webhookSecret).update(rawBody).digest("hex");
 
   try {
-    return crypto.timingSafeEqual(
-      Buffer.from(computedHash, "utf-8"),
-      Buffer.from(signature, "utf-8")
-    );
+    return crypto.timingSafeEqual(Buffer.from(computedHash, "utf8"), Buffer.from(signature, "utf8"));
   } catch {
     return false;
   }

@@ -1,6 +1,10 @@
-import { DEMO_PASSCODE } from "@/lib/config";
+import { Suspense } from "react";
 import LoginForm from "./form";
 
 export default function Page() {
-  return <LoginForm demoPasscode={DEMO_PASSCODE} />;
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  );
 }

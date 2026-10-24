@@ -1,4 +1,4 @@
-import { AppError } from "../service";
+import { AppError } from "../errors";
 import type { DB, Reminder } from "../types";
 import { confirmationText, orderToBusinessLink, reminderText, waLink } from "../whatsapp";
 

@@ -34,6 +34,15 @@ To prevent file collision during concurrent branch development:
 
 **Goal:** Establish the repo, branch protections, CI, and eliminate merge conflicts by splitting `service.ts` before feature branches diverge.
 
+**Status:** Step 1.1 done (`main` on origin). Step 1.2 done (existing workflow [`.github/workflows/ci-cd.yml`](../.github/workflows/ci-cd.yml) — do not add a second `ci.yml`). Step 1.3 done in code (`src/lib/service.ts` removed). **STOP for B and C until this is merged to `main`**, then they `git pull origin main` and open `feat/B-auth-and-otp` and `feat/C-payments-gateway`. Person A then starts Phase 2 on `feat/A-database-engine`.
+
+### Phase 1 handoff (B and C may start after `main` has this split)
+
+- **Person B owns:** `src/lib/auth/**` (create), `src/lib/services/customer.ts`, `src/lib/services/catalogue.ts` (create if needed), `src/lib/config.ts`, `src/app/business/login/**`, `src/app/checkout/**`, `src/app/my-orders/**`, `src/app/api/auth/**`, `src/app/api/lookup/**`, `src/app/shop.tsx`.
+- **Person C owns:** `src/lib/payments/**` (create), `src/lib/services/payments.ts`, `src/lib/services/messaging.ts` (create if needed), `src/lib/whatsapp.ts`, `src/app/api/payments/**`, `src/app/api/webhooks/**`, `src/app/order/[id]/**`, `src/components/whatsapp-button.tsx`.
+- **Shared read-only:** `src/lib/types.ts`. Do not add fields without a tiny shared PR.
+- **Do not edit:** `src/lib/db/**`, `src/lib/services/batch.ts`, `src/lib/services/capacity.ts`, `src/lib/services/cron.ts`, `src/app/api/admin/**`, `src/app/api/cron/**`, `src/app/business/(desk)/**`.
+
 ### Step 1.1: Git & Repository Setup (Lead / Person A)
 ```bash
 # Initialize and push to organization
@@ -75,14 +84,17 @@ To prevent all 3 developers from conflicting on `src/lib/service.ts`, Person A i
 ```
 src/lib/
 ├── types.ts              <-- Core domain types (frozen contracts)
-├── config.ts             <-- Config, pricing, pickup spots
+├── errors.ts             <-- Shared AppError
+├── config.ts             <-- Config, pricing, pickup spots (Person B)
 ├── dates.ts              <-- Timezone & cutoff utilities
 ├── services/
-│   ├── batch.ts          <-- Person A owns: sync, capacity, forecast
-│   ├── customer.ts       <-- Person B owns: customer creation, lookup, OTP
-│   ├── orders.ts         <-- Shared/Person B: createOrder, cancel, reorder
-│   └── payments.ts       <-- Person C owns: status changes to 'paid', deposit rules
-└── db/                   <-- Person A owns: repository interfaces
+│   ├── batch.ts          <-- Person A: sync, forecast, reminder queue
+│   ├── capacity.ts       <-- Person A: stub (enforced in Phase 3)
+│   ├── cron.ts           <-- Person A: stub (hourly route in Phase 3)
+│   ├── customer.ts       <-- Person B: lookup, reminder opt-in
+│   ├── orders.ts         <-- Shared/Person B: createOrder, cancel, reorder, confirm
+│   └── payments.ts       <-- Person C: markPaid (webhook in Phase 2+)
+└── db/                   <-- Person A: repo wrapping JSON store until Postgres
 ```
 
 All 3 developers execute `git pull origin main` once this commit lands.
@@ -96,6 +108,15 @@ All 3 developers execute `git pull origin main` once this commit lands.
 | **Person A (Platform)** | `feat/A-database-engine` | PostgreSQL schema, Drizzle/Prisma setup, connection pooling |
 | **Person B (Trust)** | `feat/B-auth-and-otp` | NextAuth/Iron-session for staff, Arkesel/Hubtel SMS OTP client |
 | **Person C (Channels)** | `feat/C-payments-gateway` | Paystack/Hubtel MoMo checkout API client + webhook endpoint |
+
+### Status (return to this plan)
+
+Phase 1 is on `main`. This branch is Person A's Phase 2 database engine with those `main` fixes merged in. **STOP after this push** — do not start capacity, cron, or packing (Phase 3/5).
+
+**Person A status:** Schema, Drizzle client (pooled `pg` on `DATABASE_URL`), `staff_users`, and repo methods are in `src/lib/db`. Neon project `soft-block-48919425` branch `production` is linked (`.neon`, `neon.ts`). If `DATABASE_URL` is unset, the JSON store still runs. Schema is applied with `npm run db:push` (direct `DATABASE_URL_UNPOOLED`). Paystack's paid update goes through `mutate()`, which writes Postgres when `DATABASE_URL` is set.
+
+* **Person B:** `/api/admin/*` and the batch desk accept only the `goodcane_staff` iron-session. The demo passcode cookie does not authorize those routes, and desk logout calls `POST /api/auth/logout`. A wrong OTP guess keeps the original 5-minute TTL. `.env.example` has placeholders, not a session key or password. `findStaffByUsername` reads `getStaffByUsername()` first. `DEV_STAFF_PASSWORD` applies only when that row is missing, and it is ignored when `VERCEL_ENV=production`.
+* **Person C:** Paystack initialize, webhook, and the Mobile Money button are included. Payment starts only for `confirmed` orders. The webhook requires `x-paystack-signature` whenever a Paystack secret is set, then re-checks the charge with Paystack and refuses short, cancelled, or unconfirmed payments. The server builds the return URL. A 50% Tigernut 2L/4L deposit is not described as paid in full. Guessed pickup clock times were not copied in; catalogue hours are still unconfirmed. "Open in WhatsApp" on the desk already logs `opened_whatsapp` via `reminderAction` in `src/lib/services/batch.ts`.
 
 ### Person A Tasks (Hours 2 – 8)
 1. Provision cloud PostgreSQL (Supabase / Neon / AWS RDS).

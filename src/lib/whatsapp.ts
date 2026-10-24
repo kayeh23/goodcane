@@ -43,12 +43,11 @@ export function orderToBusinessLink(o: {
   total: number;
   status?: string;
 }) {
-  const timeWindow = getFulfilmentTimeWindow(o.fulfilmentLabel);
   const text = [
     `Hi GoodCane! Pre-order request ${o.code}`,
     `Batch: ${fmtBatch(o.batchDate)}`,
     `Items: ${itemsText(o.items)}`,
-    `Collection: ${o.fulfilmentLabel} (${timeWindow})`,
+    `Collection: ${o.fulfilmentLabel}`,
     `Name: ${o.name}`,
     `Estimated total: ${cedis(o.total)} (prices to confirm)`,
   ].join("\n");
@@ -65,17 +64,20 @@ export function confirmationText(o: {
   total: number;
   status?: string;
 }) {
-  const timeWindow = getFulfilmentTimeWindow(o.fulfilmentLabel);
+  const largeFormat = o.items.some(
+    (item) => item.productId.toLowerCase() === "tigernut" && (item.sizeId.toLowerCase() === "2l" || item.sizeId.toLowerCase() === "4l")
+  );
   const paymentStatus =
     o.status === "paid"
-      ? "Payment: Paid in full via Mobile Money."
-      : `Total: ${cedis(o.total)}. Payment pending (Pay with Mobile Money or on collection).`;
+      ? largeFormat
+        ? `Deposit received toward ${cedis(o.total)}. The balance is due before collection.`
+        : `Payment received. Total: ${cedis(o.total)}.`
+      : `Total: ${cedis(o.total)}. Payment is due after this order is confirmed.`;
 
   return [
     `Hi ${o.customerName}, GoodCane here. Your pre-order ${o.code} is CONFIRMED for ${fmtBatch(o.batchDate)}.`,
     `Items: ${itemsText(o.items)}`,
     `Collection: ${o.fulfilmentLabel}`,
-    `Time window: ${timeWindow}`,
     paymentStatus,
     `Good Juice. Beautiful People.`,
   ].join("\n");

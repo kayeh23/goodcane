@@ -5,7 +5,7 @@
  */
 import { ASSUMPTIONS, DELIVERY_AREAS, PICKUP_POINTS, getSize, pickupAvailable } from "./config";
 import { addWeeks, cutoffFor, nextBatch } from "./dates";
-import { FORECAST_METHOD, draftReminder, sync } from "./service";
+import { FORECAST_METHOD, draftReminder, sync } from "./services/batch";
 import type { Customer, DB, Fulfilment, LineItem, Order, OrderStatus, Reminder, StandingOrder } from "./types";
 import { isFirm, isLive, skuKey, unitsOf } from "./util";
 

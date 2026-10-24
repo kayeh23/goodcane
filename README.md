@@ -36,13 +36,19 @@ Sample customer phones to try in **My orders**: `020 000 0001` (standing order, 
 | `/checkout` | Pickup/delivery, name + phone, opt-ins, privacy note |
 | `/order/[id]` | Order status (Request → Confirmed → Paid), WhatsApp share |
 | `/my-orders` | Phone lookup, one-tap reorder, standing order controls, reminder toggle |
-| `/business/login` | Demo passcode gate |
+| `/business/login` | Staff username and password |
 | `/business` | Next-batch demand, outlook, CSV export, reset |
 | `/business/orders` | Orders list + actions, standing orders |
 | `/business/reminders` | Approval queue + WhatsApp click-to-chat |
 | `/business/metrics` | Pilot scorecard |
 
-API (JSON): `GET /api/batch`, `POST /api/orders`, `GET /api/orders/[id]`, `POST /api/orders/[id]/reorder`, `POST /api/orders/[id]/cancel`, `POST /api/lookup`, `POST /api/standing/[id]` (`skip|unskip|pause|resume|cancel`), `POST /api/reminders/preferences`, `POST /api/payments/initialize`, `POST /api/webhooks/paystack`, and passcode-protected `/api/admin/*` (`overview`, `orders`, `orders/[id]` (`confirm|pay|cancel|notified`), `reminders`, `reminders/[id]` (`approve|dismiss|open`), `metrics`, `export`, `reset`, `login`, `logout`).
+API (JSON): `GET /api/batch`, `POST /api/orders`, `GET /api/orders/[id]`, `POST /api/orders/[id]/reorder`, `POST /api/orders/[id]/cancel`, `POST /api/lookup`, `POST /api/standing/[id]` (`skip|unskip|pause|resume|cancel`), `POST /api/reminders/preferences`.
+
+Staff session: `POST /api/auth/login` `{ username, password }` → `{ ok: true }` and cookie `goodcane_staff`; `POST /api/auth/logout` → `{ ok: true }`; `GET /api/auth/me` → `{ username, role }` or 401. Customer OTP: `POST /api/auth/otp/send` `{ phone }` → `{ ok: true }` (429 when limited); `POST /api/auth/otp/verify` `{ phone, code }` → `{ ok: true }` and cookie `goodcane_customer`.
+
+Payments: `POST /api/payments/initialize` `{ orderId, customerEmail? }` → `{ authorization_url, access_code, reference, order_id, order_code, amount, total, is_deposit }` for a **confirmed** order. `POST /api/webhooks/paystack` is the Paystack `charge.success` body with header `x-paystack-signature`. See [docs/PAYMENTS.md](docs/PAYMENTS.md).
+
+Staff-only `/api/admin/*`: `overview`, `orders`, `orders/[id]` (`confirm|pay|cancel|notified`), `reminders`, `reminders/[id]` (`approve|dismiss|open`), `metrics`, `export`, `reset`. These routes require the staff session. They do not accept the old passcode cookie.
 
 ## Run locally
 
@@ -53,40 +59,55 @@ npm run dev            # http://localhost:3000
 npm run build && npm start
 ```
 
+Postgres on Neon (production branch of project `soft-block-48919425`):
+
+```bash
+# DATABASE_URL (pooled) and DATABASE_URL_UNPOOLED are written to .env by `neon env pull`.
+npm run db:push
+# or, against the direct connection:
+psql "$DATABASE_URL_UNPOOLED" -f drizzle/0000_init.sql
+```
+
 End-to-end check (places an order, confirms, marks paid, reorders by phone, skips/cancels a standing order, approves a reminder and opens WhatsApp, exports CSV) with screenshots:
 
 ```bash
-npm run build && PORT=3000 npm start &
-BASE_URL=http://localhost:3000 SHOTS=e2e/shots npm run e2e   # needs Chrome; set CHROME_PATH if not /usr/bin/google-chrome
+# SESSION_SECRET must be 32+ characters for `next start`. Use the same DEV_STAFF_PASSWORD for the server and the test.
+SESSION_SECRET=$(openssl rand -hex 32) DEV_STAFF_PASSWORD=dev-only npm run build && PORT=3000 npm start &
+BASE_URL=http://localhost:3000 DEV_STAFF_PASSWORD=dev-only SHOTS=e2e/shots npm run e2e   # needs Chrome; set CHROME_PATH if not /usr/bin/google-chrome
 ```
 
 ## Deploy to Vercel
 
 1. Push this repo to GitHub.
 2. In Vercel → **Add New Project** → import the repo (framework auto-detected: Next.js). No build settings needed.
-3. Optional env vars (see `.env.example`): `DEMO_PASSCODE`, `NEXT_PUBLIC_GOODCANE_WHATSAPP` (leave the placeholder until GoodCane approves), and Upstash/KV credentials for persistence.
+3. Env vars (see `.env.example`): `SESSION_SECRET`, `DEV_STAFF_PASSWORD` (only if `staff_users` has no row for that username), `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct) for Neon Postgres, `NEXT_PUBLIC_GOODCANE_WHATSAPP` (leave the placeholder until GoodCane approves), Paystack keys when taking live payments, and Upstash/KV credentials for JSON persistence.
 4. Deploy. Use **Reset demo data** on the Batch desk before recording a demo.
 
 ## Architecture
 
 - Next.js 16 (App Router, Cache Components) + TypeScript + Tailwind CSS v4. Pages are client components calling small JSON route handlers.
-- `src/lib/config.ts` — **all assumptions in one place**: batch weekday (Sat), cutoff (Thu 6pm), products/prices (*to confirm*), pickup points, delivery placeholders, forecast window, WhatsApp placeholder number.
-- `src/lib/service.ts` — domain rules (order state machine, standing-order generation, reminder drafting, forecast).
+- `src/lib/config.ts` — **all assumptions in one place**: batch weekday (Sat), cutoff (Thu 6pm), products/prices (*to confirm*), pickup points, delivery placeholders, forecast window, WhatsApp placeholder number. Person B owns this file after Phase 1.
+- `src/lib/services/` — domain rules split by owner: `batch.ts` (sync, forecast, reminders), `orders.ts` (create/cancel/reorder), `customer.ts` (lookup, reminder opt-in), `payments.ts` (mark paid, deposit, Paystack apply), plus Phase 3 stubs `capacity.ts` and `cron.ts`.
+- `src/lib/auth/` — staff iron-session, Ghana phone OTP, rate limit. `src/proxy.ts` sends unsigned `/business` and `/api/admin` requests to sign-in.
+- `src/lib/payments/paystack.ts` — Paystack initialize, verify, and webhook signature.
+- `src/lib/db/` — repository contract (`getOrder`, `createOrder`, `listBatchOrders`, `mutate`, `getStaffByUsername`). Drizzle schema in `schema.ts`. Set `DATABASE_URL` (pooled Neon / `pg`) to use Postgres; otherwise the JSON store is used. Drizzle Kit uses `DATABASE_URL_UNPOOLED`.
 - `src/lib/analytics.ts` — dashboard, metrics, CSV.
 - `src/lib/seed.ts` — deterministic labelled sample data (28 sample customers, 8 past batches + current).
-- `src/lib/store/index.ts` — **the only storage module** (swappable).
-- `src/lib/payments/paystack.ts` — Paystack Mobile Money & Card adapter.
-- `src/lib/whatsapp.ts` — wa.me link builders (no API).
+- `src/lib/store/index.ts` — in-memory / Upstash JSON document used when `DATABASE_URL` is unset.
+- `src/lib/whatsapp.ts` — wa.me link builders (no API). Person C owns this file after Phase 1.
+- `src/lib/errors.ts` — shared `AppError` for JSON API handlers.
+- `src/lib/types.ts` — frozen domain types. Change only via a shared PR.
 
 ### Storage & known limitations
 
 - **Default store is in-memory**, seeded with sample data on cold start. Zero setup on Vercel, but data **resets when the instance restarts**, and concurrent serverless instances may hold different copies. Good enough for a demo video; not for a pilot.
-- Set `UPSTASH_REDIS_REST_URL`/`TOKEN` (or `KV_REST_API_URL`/`TOKEN`) to persist the same JSON document in Upstash Redis. For a pilot, replace `store/index.ts` with Postgres tables (customers, orders, line_items, standing_orders, reminders, forecasts) behind the same `read/write` contract.
+- Set `DATABASE_URL` (pooled) and apply `drizzle/0000_init.sql` (or `npm run db:push`, which uses `DATABASE_URL_UNPOOLED`) to persist customers, orders, standing_orders, reminders, forecasts, and `staff_users` in Neon Postgres. Existing API handlers still call `mutate()`; the repo hydrates the domain document from tables so B/C do not wait on a SQL rewrite.
+- Set `UPSTASH_REDIS_REST_URL`/`TOKEN` (or `KV_REST_API_URL`/`TOKEN`) to persist the same JSON document in Upstash Redis when Postgres is not ready.
 - **Phone lookup is not authentication**: anyone with a number could see that number's orders. A pilot should add an SMS/WhatsApp one-time code.
-- The business passcode is a demo gate shown on screen.
+- The batch desk requires the staff session. With `DATABASE_URL` set, login reads `staff_users` via `getStaffByUsername`. `DEV_STAFF_PASSWORD` is used only when that row is missing, and it is ignored when `VERCEL_ENV=production`.
 - Times are Ghana time (UTC+0). Batch day/cutoff are assumptions until GoodCane confirms.
 - WhatsApp: links only. Sample phone numbers are fake, so wa.me links for sample customers lead nowhere real.
-- No payments, stock, capacity limits or delivery fees are modelled (all to confirm).
+- Paystack marks a confirmed order paid when the verified charge covers the payable amount (full total, or 50% for Tigernut 2L/4L). Stock, capacity limits and delivery fees are still to confirm. Pickup clock times are not in WhatsApp messages until GoodCane confirms them.
 
 ## Docs
 
