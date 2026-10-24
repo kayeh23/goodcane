@@ -14,17 +14,17 @@ A mobile-first web prototype that helps **GoodCane** (fresh sugarcane & tigernut
 5. Order is saved as a **REQUEST**. Optional **"Send to GoodCane on WhatsApp"** button opens a prefilled wa.me message.
 6. Comes back to **My orders** (phone lookup, remembered on the device) → **one-tap Reorder**, cancel before cutoff, **skip this week / pause / resume / cancel** a standing order, turn reminders off.
 
-**Business (“Batch desk”, passcode-gated)**
+**Business (“Batch desk”, staff sign-in)**
 - **Overview**: next-batch demand by product & size split **Requested / Confirmed / Paid**, prep plan in litres, standing-order summary, **4-batch demand outlook** (standing orders + moving average, method shown), **CSV export**, **Reset demo data**.
 - **Orders**: filters (batch, status, source) with **Confirm / Decline / Mark paid / Cancel**, optional **Notify on WhatsApp** (prefilled confirmation), and a standing-orders tab.
 - **Reminders**: queue drafted for opted-in recent customers. **Approve → “Open in WhatsApp” unlocks → business presses Send manually**; status becomes *Opened in WhatsApp (business sends manually)*.
 - **Metrics**: repeat-order rate, confirmed weekly orders, cancellation rate, forecast accuracy (1 − MAPE vs snapshotted forecasts), reminder conversion, opt-in rate — over 8 weeks of sample history.
 
-Order lifecycle: `REQUEST → CONFIRMED → PAID` (paid is marked manually), or `CANCELLED` (by customer before cutoff, or by GoodCane).
+Order lifecycle: `REQUEST → CONFIRMED → PAID` (Paystack Mobile Money or card after confirm, or marked paid on the desk), or `CANCELLED` (by customer before cutoff, or by GoodCane). Tigernut 2L and 4L charge a 50% deposit; the order total stays the full amount.
 
-## Demo passcode
+## Staff sign-in
 
-`goodcane-demo` (shown on the login screen; override with `DEMO_PASSCODE`). Demo-only gate — a pilot needs real staff accounts.
+The batch desk uses `/api/auth/login` (`username`, `password`) and an iron-session cookie (`goodcane_staff`). Until `staff_users` lands from `feat/A-database-engine`, development accepts username `admin` and `DEV_STAFF_PASSWORD`. That password is ignored when `VERCEL_ENV=production`. `SESSION_SECRET` (at least 32 characters) is required for `next start`. The old demo passcode does not open the desk.
 
 Sample customer phones to try in **My orders**: `020 000 0001` (standing order, paid this week), `020 000 0005` (standing order awaiting confirmation), `020 000 0013` (one-off buyer with a reminder pending). All are fake placeholders.
 
@@ -36,13 +36,19 @@ Sample customer phones to try in **My orders**: `020 000 0001` (standing order, 
 | `/checkout` | Pickup/delivery, name + phone, opt-ins, privacy note |
 | `/order/[id]` | Order status (Request → Confirmed → Paid), WhatsApp share |
 | `/my-orders` | Phone lookup, one-tap reorder, standing order controls, reminder toggle |
-| `/business/login` | Demo passcode gate |
+| `/business/login` | Staff username and password |
 | `/business` | Next-batch demand, outlook, CSV export, reset |
 | `/business/orders` | Orders list + actions, standing orders |
 | `/business/reminders` | Approval queue + WhatsApp click-to-chat |
 | `/business/metrics` | Pilot scorecard |
 
-API (JSON): `GET /api/batch`, `POST /api/orders`, `GET /api/orders/[id]`, `POST /api/orders/[id]/reorder`, `POST /api/orders/[id]/cancel`, `POST /api/lookup`, `POST /api/standing/[id]` (`skip|unskip|pause|resume|cancel`), `POST /api/reminders/preferences`, and passcode-protected `/api/admin/*` (`overview`, `orders`, `orders/[id]` (`confirm|pay|cancel|notified`), `reminders`, `reminders/[id]` (`approve|dismiss|open`), `metrics`, `export`, `reset`, `login`, `logout`).
+API (JSON): `GET /api/batch`, `POST /api/orders`, `GET /api/orders/[id]`, `POST /api/orders/[id]/reorder`, `POST /api/orders/[id]/cancel`, `POST /api/lookup`, `POST /api/standing/[id]` (`skip|unskip|pause|resume|cancel`), `POST /api/reminders/preferences`.
+
+Staff session: `POST /api/auth/login` `{ username, password }` → `{ ok: true }` and cookie `goodcane_staff`; `POST /api/auth/logout` → `{ ok: true }`; `GET /api/auth/me` → `{ username, role }` or 401. Customer OTP: `POST /api/auth/otp/send` `{ phone }` → `{ ok: true }` (429 when limited); `POST /api/auth/otp/verify` `{ phone, code }` → `{ ok: true }` and cookie `goodcane_customer`.
+
+Payments: `POST /api/payments/initialize` `{ orderId, customerEmail? }` → `{ authorization_url, access_code, reference, order_id, order_code, amount, total, is_deposit }` for a **confirmed** order. `POST /api/webhooks/paystack` is the Paystack `charge.success` body with header `x-paystack-signature`. See [docs/PAYMENTS.md](docs/PAYMENTS.md).
+
+Staff-only `/api/admin/*`: `overview`, `orders`, `orders/[id]` (`confirm|pay|cancel|notified`), `reminders`, `reminders/[id]` (`approve|dismiss|open`), `metrics`, `export`, `reset`. These routes require the staff session. They do not accept the old passcode cookie.
 
 ## Run locally
 
@@ -56,22 +62,25 @@ npm run build && npm start
 End-to-end check (places an order, confirms, marks paid, reorders by phone, skips/cancels a standing order, approves a reminder and opens WhatsApp, exports CSV) with screenshots:
 
 ```bash
-npm run build && PORT=3000 npm start &
-BASE_URL=http://localhost:3000 SHOTS=e2e/shots npm run e2e   # needs Chrome; set CHROME_PATH if not /usr/bin/google-chrome
+# SESSION_SECRET must be 32+ characters for `next start`. Use the same DEV_STAFF_PASSWORD for the server and the test.
+SESSION_SECRET=$(openssl rand -hex 32) DEV_STAFF_PASSWORD=dev-only npm run build && PORT=3000 npm start &
+BASE_URL=http://localhost:3000 DEV_STAFF_PASSWORD=dev-only SHOTS=e2e/shots npm run e2e   # needs Chrome; set CHROME_PATH if not /usr/bin/google-chrome
 ```
 
 ## Deploy to Vercel
 
 1. Push this repo to GitHub.
 2. In Vercel → **Add New Project** → import the repo (framework auto-detected: Next.js). No build settings needed.
-3. Optional env vars (see `.env.example`): `DEMO_PASSCODE`, `NEXT_PUBLIC_GOODCANE_WHATSAPP` (leave the placeholder until GoodCane approves), and Upstash/KV credentials for persistence.
+3. Env vars (see `.env.example`): `SESSION_SECRET`, `DEV_STAFF_PASSWORD` (local desk only), `NEXT_PUBLIC_GOODCANE_WHATSAPP` (leave the placeholder until GoodCane approves), Paystack keys when taking live payments, and Upstash/KV credentials for persistence.
 4. Deploy. Use **Reset demo data** on the Batch desk before recording a demo.
 
 ## Architecture
 
 - Next.js 16 (App Router, Cache Components) + TypeScript + Tailwind CSS v4. Pages are client components calling small JSON route handlers.
 - `src/lib/config.ts` — **all assumptions in one place**: batch weekday (Sat), cutoff (Thu 6pm), products/prices (*to confirm*), pickup points, delivery placeholders, forecast window, WhatsApp placeholder number. Person B owns this file after Phase 1.
-- `src/lib/services/` — domain rules split by owner: `batch.ts` (sync, forecast, reminders), `orders.ts` (create/cancel/reorder), `customer.ts` (lookup, reminder opt-in), `payments.ts` (mark paid), plus Phase 3 stubs `capacity.ts` and `cron.ts`.
+- `src/lib/services/` — domain rules split by owner: `batch.ts` (sync, forecast, reminders), `orders.ts` (create/cancel/reorder), `customer.ts` (lookup, reminder opt-in), `payments.ts` (mark paid, deposit, Paystack apply), plus Phase 3 stubs `capacity.ts` and `cron.ts`.
+- `src/lib/auth/` — staff iron-session, Ghana phone OTP, rate limit. `src/proxy.ts` sends unsigned `/business` and `/api/admin` requests to sign-in.
+- `src/lib/payments/paystack.ts` — Paystack initialize, verify, and webhook signature.
 - `src/lib/db/` — repository contract (`getOrder`, `listBatchOrders`, `mutate`). Phase 1 still wraps the JSON store; Postgres replaces the backing store in Phase 2.
 - `src/lib/analytics.ts` — dashboard, metrics, CSV.
 - `src/lib/seed.ts` — deterministic labelled sample data (28 sample customers, 8 past batches + current).
@@ -85,14 +94,15 @@ BASE_URL=http://localhost:3000 SHOTS=e2e/shots npm run e2e   # needs Chrome; set
 - **Default store is in-memory**, seeded with sample data on cold start. Zero setup on Vercel, but data **resets when the instance restarts**, and concurrent serverless instances may hold different copies. Good enough for a demo video; not for a pilot.
 - Set `UPSTASH_REDIS_REST_URL`/`TOKEN` (or `KV_REST_API_URL`/`TOKEN`) to persist the same JSON document in Upstash Redis. For a pilot, implement Postgres in `src/lib/db/` (customers, orders, standing_orders, reminders, forecasts, staff_users) behind the same `getOrder` / `mutate` contract.
 - **Phone lookup is not authentication**: anyone with a number could see that number's orders. A pilot should add an SMS/WhatsApp one-time code.
-- The business passcode is a demo gate shown on screen.
+- The batch desk requires the staff session. `DEV_STAFF_PASSWORD` is a local stand-in until `staff_users` is merged from `feat/A-database-engine`.
 - Times are Ghana time (UTC+0). Batch day/cutoff are assumptions until GoodCane confirms.
 - WhatsApp: links only. Sample phone numbers are fake, so wa.me links for sample customers lead nowhere real.
-- No payments, stock, capacity limits or delivery fees are modelled (all to confirm).
+- Paystack marks a confirmed order paid when the verified charge covers the payable amount (full total, or 50% for Tigernut 2L/4L). Stock, capacity limits and delivery fees are still to confirm. Pickup clock times are not in WhatsApp messages until GoodCane confirms them.
 
 ## Docs
 
 - [docs/24_HOUR_SPRINT_PLAN.md](docs/24_HOUR_SPRINT_PLAN.md) — 24-hour sprint plan for 3 developers (concurrent setup, DB, auth/OTP, MoMo payments)
+- [docs/PAYMENTS.md](docs/PAYMENTS.md) — Paystack initialize, webhook, and deposit rules
 - [docs/WRITEUP.md](docs/WRITEUP.md) — customer problem, TikTok evidence, assumptions checklist, approach, rollout plan (incl. WhatsApp levels)
 - [docs/MEASUREMENT.md](docs/MEASUREMENT.md) — metric definitions, formulas, hypotheses, 4-week pilot
 - [docs/VIDEO_SCRIPT.md](docs/VIDEO_SCRIPT.md) — ~2 min demo shot list

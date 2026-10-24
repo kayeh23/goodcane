@@ -109,6 +109,15 @@ All 3 developers execute `git pull origin main` once this commit lands.
 | **Person B (Trust)** | `feat/B-auth-and-otp` | NextAuth/Iron-session for staff, Arkesel/Hubtel SMS OTP client |
 | **Person C (Channels)** | `feat/C-payments-gateway` | Paystack/Hubtel MoMo checkout API client + webhook endpoint |
 
+### Status (return to this plan)
+
+Phase 1 (service split) is on `main`. The next implementation push is Person A's original Phase 2 work on `feat/A-database-engine`: Postgres schema, Drizzle, pooled `DATABASE_URL`, and `staff_users`. Do not start capacity, cron, or packing from that branch until the database engine is pushed.
+
+Corrected on `main` before that push:
+
+* **Person B:** `/api/admin/*` and the batch desk accept only the `goodcane_staff` iron-session. The demo passcode cookie does not authorize those routes, and desk logout calls `POST /api/auth/logout`. A wrong OTP guess keeps the original 5-minute TTL. `.env.example` has placeholders, not a session key or password. `DEV_STAFF_PASSWORD` is ignored when `VERCEL_ENV=production`. Replacing that dev user with `getStaffByUsername()` is the first task after the database branch merges.
+* **Person C:** Paystack initialize, webhook, and the Mobile Money button are on `main`. Payment starts only for `confirmed` orders. The webhook requires `x-paystack-signature` whenever a Paystack secret is set, then re-checks the charge with Paystack and refuses short, cancelled, or unconfirmed payments. The server builds the return URL. A 50% Tigernut 2L/4L deposit is not described as paid in full. Guessed pickup clock times were not copied in; catalogue hours are still unconfirmed. "Open in WhatsApp" on the desk already logs `opened_whatsapp` via `reminderAction` in `src/lib/services/batch.ts`.
+
 ### Person A Tasks (Hours 2 – 8)
 1. Provision cloud PostgreSQL (Supabase / Neon / AWS RDS).
 2. Install ORM: `npm i drizzle-orm pg @types/pg` + `npm i -D drizzle-kit`.

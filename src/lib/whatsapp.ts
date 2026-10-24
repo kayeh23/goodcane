@@ -37,12 +37,21 @@ export function orderToBusinessLink(o: { code: string; items: LineItem[]; batchD
 }
 
 /** GoodCane -> customer: confirmation note (business presses Send). */
-export function confirmationText(o: { code: string; items: LineItem[]; batchDate: string; fulfilmentLabel: string; customerName: string; total: number }) {
+export function confirmationText(o: { code: string; items: LineItem[]; batchDate: string; fulfilmentLabel: string; customerName: string; total: number; status?: string }) {
+  const largeFormat = o.items.some(
+    (item) => item.productId.toLowerCase() === "tigernut" && (item.sizeId.toLowerCase() === "2l" || item.sizeId.toLowerCase() === "4l"),
+  );
+  const paymentStatus =
+    o.status === "paid"
+      ? largeFormat
+        ? `Deposit received toward ${cedis(o.total)}. The balance is due before collection.`
+        : `Payment received. Total: ${cedis(o.total)}.`
+      : `Total: ${cedis(o.total)}. Payment is due after this order is confirmed.`;
   return [
-    `Hi ${o.customerName}, GoodCane here 🌿 Your pre-order ${o.code} is CONFIRMED for ${fmtBatch(o.batchDate)}.`,
+    `Hi ${o.customerName}, GoodCane here. Your pre-order ${o.code} is CONFIRMED for ${fmtBatch(o.batchDate)}.`,
     `Items: ${itemsText(o.items)}`,
     `Collection: ${o.fulfilmentLabel}`,
-    `Total: ${cedis(o.total)}. Payment details to follow.`,
+    paymentStatus,
     `Good Juice. Beautiful People.`,
   ].join("\n");
 }

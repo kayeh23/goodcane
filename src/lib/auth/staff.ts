@@ -23,12 +23,13 @@ type StaffRecord = {
  * querying the DB). Keep the signature: async (username) => StaffRecord | null.
  *
  * Dev behaviour: single user "admin" whose password is DEV_STAFF_PASSWORD.
- * Returns null in production so the backdoor can never ship live.
+ * Ignored on Vercel production (VERCEL_ENV=production). Person A's branch
+ * replaces this body with getStaffByUsername() against staff_users.
  */
 export async function findStaffByUsername(
   username: string
 ): Promise<StaffRecord | null> {
-  if (process.env.NODE_ENV === "production") return null;
+  if (process.env.VERCEL_ENV === "production") return null;
   if (username !== "admin") return null;
 
   const devPassword = process.env.DEV_STAFF_PASSWORD;
