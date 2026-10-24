@@ -2,8 +2,8 @@ import { ASSUMPTIONS, getProduct, pickupAvailable } from "../config";
 import { addWeeks, fmtBatch, fmtCutoff, nextBatch } from "../dates";
 import { AppError } from "../errors";
 import type { Customer, DB, Order, Reminder, StandingOrder } from "../types";
-import { isFirm, isLive, newId, skuKey } from "../util";
-import { assertBatchCapacity } from "./capacity";
+import { isFirm, isLive, litresOf, newId, skuKey } from "../util";
+import { wouldExceedCapacity } from "./capacity";
 import { activeStandingFor } from "./customer";
 import { makeOrder, pushEvent } from "./orders";
 
@@ -30,7 +30,7 @@ export function sync(db: DB, now = new Date(), sample = false) {
     if (!customer) continue;
     let fulfilment = s.fulfilment;
     if (fulfilment.type === "pickup" && !pickupAvailable(fulfilment.pointId, B)) fulfilment = { type: "pickup", pointId: "adenta" };
-    assertBatchCapacity(db, B);
+    if (wouldExceedCapacity(db, B, litresOf(s.items))) continue;
     const o = makeOrder(db, { customer, batchDate: B, items: s.items, fulfilment, source: "standing", standingOrderId: s.id, now, sample: sample || s.sample });
     if (fulfilment !== s.fulfilment) pushEvent(o, "created", "system", "Usual pickup point closed this batch — moved to Adenta shop (customer can change)");
   }
