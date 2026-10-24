@@ -1,14 +1,15 @@
 import type { NextRequest } from "next/server";
-import { handle } from "@/lib/api";
+import { requireCustomer, handle } from "@/lib/api";
 import { decorate } from "@/lib/analytics";
-import { AppError } from "@/lib/errors";
+import { getOrderForPhone } from "@/lib/services/orders";
 
-/** Public order status. Order ids are unguessable; only first name is returned. */
-export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+/** Order status. Only verified owners may view the order via their session; others get 401. */
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const phone = await requireCustomer(req);
+  if (phone instanceof Response) return phone;
   const { id } = await ctx.params;
   return handle((db) => {
-    const o = db.orders.find((x) => x.id === id);
-    if (!o) throw new AppError("Order not found.", 404);
+    const o = getOrderForPhone(db, id, phone);
     const d = decorate(db, o);
     const s = o.standingOrderId ? db.standing.find((x) => x.id === o.standingOrderId) : undefined;
     return {

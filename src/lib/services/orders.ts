@@ -127,6 +127,14 @@ function ownedOrder(db: DB, orderId: string, phoneRaw: unknown) {
   return { o, c };
 }
 
+export function getOrderForPhone(db: DB, orderId: string, phone: string) {
+  const o = db.orders.find((x) => x.id === orderId);
+  if (!o) throw new AppError("Order not found.", 404);
+  const c = db.customers.find((x) => x.id === o.customerId);
+  if (!c || c.phone !== phone) throw new AppError("Order not found for this account.", 404);
+  return o;
+}
+
 export function reorder(db: DB, orderId: string, phone: unknown, now = new Date()) {
   const { o, c } = ownedOrder(db, orderId, phone);
   return createOrder(db, { name: c.name, phone: c.phone, items: o.items, fulfilment: o.fulfilment, remindersOptIn: false, repeatWeekly: false, source: "reorder" }, now);

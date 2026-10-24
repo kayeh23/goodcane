@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getStaffSession } from "./auth/staff";
+import { getCustomerSession } from "./auth/customer-session";
 import { mutate } from "./db";
 import { AppError } from "./errors";
 import { runScheduledSync } from "./services/cron";
@@ -20,6 +21,13 @@ export async function body(req: NextRequest): Promise<Record<string, unknown>> {
   } catch {
     return {};
   }
+}
+
+/** Return the verified customer phone, or a 401 JSON response. */
+export async function requireCustomer(_req: NextRequest): Promise<string | Response> {
+  const phone = await getCustomerSession();
+  if (!phone) return NextResponse.json({ error: "Please sign in to your account." }, { status: 401 });
+  return phone;
 }
 
 /** Run fn against the synced DB inside the write lock, map errors to JSON. */

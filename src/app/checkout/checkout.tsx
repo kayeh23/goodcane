@@ -9,17 +9,20 @@ import { CustomerHeader, DemoBanner, Dot } from "@/components/brand";
 import { useBatch } from "@/components/batch";
 import { api, useCart, useSavedPhone } from "@/components/client";
 import { Stepper } from "@/components/stepper";
-
-export default function Checkout() {
+import PhoneVerify from "@/components/phone-verify";
+type CheckoutProps = {
+  sessionPhone: string | null;
+};
+export default function Checkout({ sessionPhone }: CheckoutProps) {
   const router = useRouter();
   const cart = useCart();
   const saved = useSavedPhone();
+  const showPhoneVerify = sessionPhone == null;
   const { data: batch } = useBatch();
   const [mode, setMode] = useState<"pickup" | "delivery">("pickup");
   const [pointId, setPointId] = useState("adenta");
   const [area, setArea] = useState("");
-  const [landmark, setLandmark] = useState("");
-  const [nameEdit, setName] = useState<string | null>(null);
+  const [landmark, setLandmark] = useState("");  const [nameEdit, setName] = useState<string | null>(null);
   const [phoneEdit, setPhone] = useState<string | null>(null);
   const name = nameEdit ?? saved.name ?? "";
   const phone = phoneEdit ?? (saved.phone ? saved.phone : "");
@@ -28,9 +31,10 @@ export default function Checkout() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-
   const total = cart.lines.reduce((s, l) => s + l.qty * (getSize(l.productId, l.sizeId)?.price ?? 0), 0);
   const available = (id: string) => batch?.pickup.find((p) => p.id === id)?.available ?? true;
+
+
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -69,6 +73,16 @@ export default function Checkout() {
         </div>
       </div>
     );
+
+  if (showPhoneVerify) {
+    return (
+      <PhoneVerify
+        phoneLabel="Your phone number"
+        phoneHelp="We’ll send a 4-digit code by SMS. Ghana numbers only — 024 123 4567 or +233 24 123 4567."
+        refreshUrl="/api/lookup"
+      />
+    );
+  }
 
   return (
     <div className="mx-auto max-w-md pb-10">
@@ -173,7 +187,7 @@ export default function Checkout() {
             <label className="label text-[13px] font-medium" htmlFor="phone">
               Phone (WhatsApp or SMS)
             </label>
-            <input id="phone" className="input" type="tel" inputMode="tel" autoComplete="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="020 000 0001" />
+            <input id="phone" className="input" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="020 000 0001" />
           </div>
         </section>
 

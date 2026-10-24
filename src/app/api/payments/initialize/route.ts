@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { body, handle } from "@/lib/api";
+import { requireCustomer, body, handle } from "@/lib/api";
 import { initializeTransaction } from "@/lib/payments/paystack";
 import { getOrderForPayment } from "@/lib/services/payments";
 
@@ -11,6 +11,8 @@ import { getOrderForPayment } from "@/lib/services/payments";
  * 200 { authorization_url, access_code, reference, order_id, order_code, amount, total, is_deposit }
  */
 export async function POST(req: NextRequest) {
+  const phone = await requireCustomer(req);
+  if (phone instanceof Response) return phone;
   const payload = await body(req);
   const orderId = String(payload.orderId ?? "").trim();
   const customerEmail = typeof payload.customerEmail === "string" ? payload.customerEmail.trim() : undefined;
@@ -23,6 +25,9 @@ export async function POST(req: NextRequest) {
 
   return handle(async (db) => {
     const context = getOrderForPayment(db, orderId);
+    if (context.customerPhone !== phone) {
+      return NextResponse.json({ error: "Order not found for this account." }, { status: 404 });
+    }
     const initResult = await initializeTransaction({
       orderId: context.order.id,
       orderCode: context.order.code,

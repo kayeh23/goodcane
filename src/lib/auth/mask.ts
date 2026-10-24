@@ -11,13 +11,14 @@ import { normalizeGhanaPhone } from "./phone";
  * same masked string. NEVER throws: invalid or missing input returns a
  * generic masked string instead.
  */
-export function maskPhone(phone: string): string {
+export function maskPhone(phone: unknown): string {
   let national: string;
   try {
-    const e164 = normalizeGhanaPhone(phone); // 233XXXXXXXXX
-    national = `0${e164.slice(3)}`; // 0XXXXXXXXX (10 digits)
+    const n = normalizeGhanaPhone(String(phone ?? ""));
+    if (!n) return "*** *** ****";
+    national = `0${n.slice(3)}`;
   } catch {
-    return "*** *** ****"; // generic mask — never leak why it failed
+    return "*** *** ****";
   }
 
   const head = national.slice(0, 3); // e.g. 024
