@@ -15,7 +15,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
   const logout = async () => {
-    await api("/api/admin/logout", { method: "POST" }).catch(() => {});
+    await api("/api/auth/logout", { method: "POST" }).catch(() => {});
     router.push("/business/login");
   };
   return (

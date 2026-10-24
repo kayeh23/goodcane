@@ -1,13 +1,16 @@
 "use client";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { WHATSAPP_IS_PLACEHOLDER, getProduct, getSize } from "@/lib/config";
 import { fmtBatch, fmtCutoff, fmtDateTime } from "@/lib/dates";
 import type { LineItem, OrderEvent, OrderStatus } from "@/lib/types";
+import { calculatePaymentAmount } from "@/lib/services/payments";
 import { cedis } from "@/lib/util";
 import { orderToBusinessLink } from "@/lib/whatsapp";
 import { CustomerHeader, DemoBanner, Dot, StatusBadge } from "@/components/brand";
 import { useApi } from "@/components/client";
+import { PaymentButton } from "@/components/payment-button";
 import { WhatsAppLink } from "@/components/whatsapp-button";
 
 type OrderView = {
@@ -18,13 +21,62 @@ type OrderView = {
 const STEPS: { key: OrderStatus; title: string; text: string }[] = [
   { key: "requested", title: "Request sent", text: "GoodCane checks the batch and confirms." },
   { key: "confirmed", title: "Confirmed", text: "Your bottles are reserved in this batch." },
-  { key: "paid", title: "Paid", text: "GoodCane marks it paid when you pay (as today)." },
+  { key: "paid", title: "Paid", text: "Mobile Money or the batch desk marks the order paid." },
 ];
 
 export default function OrderStatusView() {
   const { id } = useParams<{ id: string }>();
-  const { data: o, error, loading } = useApi<OrderView>(`/api/orders/${id}`);
+  const searchParams = useSearchParams();
+  const { data: o, error, loading, reload } = useApi<OrderView>(`/api/orders/${id}`);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const simPosted = useRef(false);
   const idx = o ? STEPS.findIndex((s) => s.key === o.status) : -1;
+  const payment = o ? calculatePaymentAmount(o.items) : null;
+  const isSimulated = searchParams.get("simulated_payment") === "success";
+  const paymentRef = searchParams.get("reference") || searchParams.get("trxref");
+
+  useEffect(() => {
+    if (!o || o.status !== "confirmed") return;
+    const interval = setInterval(() => {
+      void reload();
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [o, reload]);
+
+  useEffect(() => {
+    if (!isSimulated || !o || o.status !== "confirmed" || !payment || simPosted.current) return;
+    const reference = paymentRef?.startsWith("sim_") ? paymentRef : `sim_${o.code}_${Date.now()}`;
+    const deposit = payment.isDeposit;
+    const pesewas = payment.payablePesewas;
+    const orderId = o.id;
+    const orderCode = o.code;
+    simPosted.current = true;
+    void fetch("/api/webhooks/paystack", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: "charge.success",
+        data: {
+          reference,
+          status: "success",
+          amount: pesewas,
+          currency: "GHS",
+          channel: "mobile_money",
+          metadata: { orderId, orderCode },
+        },
+      }),
+    })
+      .then(async (res) => {
+        const body = (await res.json().catch(() => ({}))) as { applied?: boolean; reason?: string };
+        if (res.ok && body.applied) {
+          setToastMessage(deposit ? "Deposit received. The balance is still due before collection." : "Payment received. This order is paid.");
+        } else {
+          setToastMessage(body.reason || "Payment could not be recorded.");
+        }
+        await reload();
+      })
+      .catch(() => setToastMessage("Payment could not be recorded."));
+  }, [isSimulated, o, payment, paymentRef, reload]);
 
   return (
     <div className="mx-auto max-w-md pb-10">
@@ -33,12 +85,13 @@ export default function OrderStatusView() {
       <main className="space-y-4 px-4">
         {loading && !o && <p className="card p-6 text-center text-sm text-black/60">Loading…</p>}
         {error && <p className="card p-6 text-center text-sm text-red-700">{error.message}</p>}
+        {toastMessage && <p className="card p-4 text-center text-sm">{toastMessage}</p>}
         {o && (
           <>
             <section className="rounded-3xl bg-ink p-5 text-white">
               <p className="text-xs font-bold tracking-[0.14em] text-lime uppercase">{o.status === "cancelled" ? "Cancelled" : o.status === "requested" ? "Request received" : "You're in the batch"}</p>
               <h1 className="mt-1 font-display text-[28px] font-bold leading-tight">
-                {o.status === "cancelled" ? "This order was cancelled" : `Thanks, ${o.firstName}!`}
+                {o.status === "cancelled" ? "This order was cancelled" : o.status === "paid" ? `You're all set, ${o.firstName}!` : `Thanks, ${o.firstName}!`}
               </h1>
               <p className="mt-1 text-sm text-white/75">
                 Ref <b className="text-white">{o.code}</b> · {fmtBatch(o.batchDate)} batch
@@ -60,6 +113,30 @@ export default function OrderStatusView() {
               </ol>
             ) : (
               <p className="card p-4 text-sm text-black/70">{o.cancelReason ?? "Cancelled."}</p>
+            )}
+
+            {o.status === "confirmed" && payment && (
+              <section className="card space-y-3 p-4">
+                <h2 className="text-base font-bold">Pay with Mobile Money (GH₵)</h2>
+                <p className="text-[13px] text-black/60">
+                  {payment.isDeposit
+                    ? `Tigernut 2L or 4L needs a 50% deposit of ${cedis(payment.payableInCedis)} now. The rest of the ${cedis(payment.totalInCedis)} total is due before collection.`
+                    : "Pay with MTN MoMo, Telecel Cash, or card. This order is already confirmed."}
+                </p>
+                {paymentRef && !isSimulated && <p className="text-[13px] text-black/60">Waiting for Paystack to confirm this payment.</p>}
+                <PaymentButton orderId={o.id} orderCode={o.code} amountInCedis={payment.payableInCedis} isDeposit={payment.isDeposit} />
+              </section>
+            )}
+
+            {o.status === "paid" && payment && (
+              <section className="card p-4">
+                <p className="text-sm font-semibold">{payment.isDeposit ? "Deposit received" : "Payment received"}</p>
+                <p className="mt-1 text-[13px] text-black/60">
+                  {payment.isDeposit
+                    ? `The balance of this ${cedis(payment.totalInCedis)} order is still due before collection at ${o.fulfilmentLabel}.`
+                    : `This order is paid in full for ${o.fulfilmentLabel} on ${fmtBatch(o.batchDate)}.`}
+                </p>
+              </section>
             )}
 
             {o.status !== "cancelled" && (

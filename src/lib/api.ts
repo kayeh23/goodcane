@@ -1,16 +1,16 @@
-import { createHash } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
-import { DEMO_PASSCODE } from "./config";
+import { getStaffSession } from "./auth/staff";
 import { mutate } from "./db";
 import { AppError } from "./errors";
 import { sync } from "./services/batch";
 import type { DB } from "./types";
 
+/** Legacy demo cookie. Logout still clears it. It does not authorize /api/admin. */
 export const ADMIN_COOKIE = "gc_admin";
-export const adminToken = () => createHash("sha256").update(`goodcane-demo:${DEMO_PASSCODE}`).digest("hex");
 
-export function isAdmin(req: NextRequest) {
-  return req.cookies.get(ADMIN_COOKIE)?.value === adminToken();
+export async function isAdmin(_req: NextRequest) {
+  const session = await getStaffSession();
+  return Boolean(session.username);
 }
 
 export async function body(req: NextRequest): Promise<Record<string, unknown>> {
@@ -24,7 +24,7 @@ export async function body(req: NextRequest): Promise<Record<string, unknown>> {
 
 /** Run fn against the synced DB inside the write lock, map errors to JSON. */
 export async function handle<T>(fn: (db: DB) => T | Promise<T>, opts: { admin?: NextRequest } = {}) {
-  if (opts.admin && !isAdmin(opts.admin)) return NextResponse.json({ error: "Business passcode required." }, { status: 401 });
+  if (opts.admin && !(await isAdmin(opts.admin))) return NextResponse.json({ error: "Staff sign-in required." }, { status: 401 });
   try {
     const out = await mutate(async (db) => {
       sync(db);

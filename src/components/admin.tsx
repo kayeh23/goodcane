@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useApi } from "./client";
 
-/** Admin data hook: redirects to the passcode screen on 401. */
+/** Admin data hook: redirects to staff sign-in on 401. */
 export function useAdmin<T>(url: string) {
   const router = useRouter();
   const r = useApi<T>(url);
