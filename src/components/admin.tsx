@@ -13,6 +13,34 @@ export function useAdmin<T>(url: string) {
   return r;
 }
 
+/** Loading / error / empty for desk pages that used to spin forever on a failed fetch. */
+export function DeskQueryStatus({
+  loading,
+  error,
+  hasData,
+  emptyMessage = "Nothing to show yet.",
+}: {
+  loading: boolean;
+  error: (Error & { status?: number }) | null;
+  hasData: boolean;
+  emptyMessage?: string;
+}) {
+  if (error && error.status !== 401) {
+    return (
+      <p role="alert" className="text-sm text-red-700">
+        {error.message}
+      </p>
+    );
+  }
+  if (!hasData && loading) {
+    return <p className="text-sm text-black/50">Loading…</p>;
+  }
+  if (!hasData) {
+    return <p className="text-sm text-black/50">{emptyMessage}</p>;
+  }
+  return null;
+}
+
 export function Kpi({ label, value, sub, tone = "ink" }: { label: string; value: React.ReactNode; sub?: React.ReactNode; tone?: "ink" | "amber" | "sky" | "green" | "red" | "tan" }) {
   const c = { ink: "text-ink", amber: "text-amber", sky: "text-sky-800", green: "text-cane", red: "text-red-700", tan: "text-[#7a5631]" }[tone];
   return (

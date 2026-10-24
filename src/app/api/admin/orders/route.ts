@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     const batch = sp.get("batch") || B;
     const status = sp.get("status") || "all";
     const source = sp.get("source") || "all";
-    const batches = [...new Set(db.orders.map((o) => o.batchDate))].sort().reverse();
+    const batches = [...new Set([batch === "all" ? B : batch, B, ...db.orders.map((o) => o.batchDate)])].sort().reverse();
     const orders = db.orders
       .filter((o) => (batch === "all" || o.batchDate === batch) && (status === "all" || o.status === status) && (source === "all" || (source === "standing" ? !!o.standingOrderId : o.source === source)))
       .sort((a, b) => b.batchDate.localeCompare(a.batchDate) || b.createdAt.localeCompare(a.createdAt))

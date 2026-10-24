@@ -16,6 +16,7 @@ A mobile-first web prototype that helps **GoodCane** (fresh sugarcane & tigernut
 
 **Business (“Batch desk”, passcode-gated)**
 - **Overview**: next-batch demand by product & size split **Requested / Confirmed / Paid**, prep plan in litres, standing-order summary, **4-batch demand outlook** (standing orders + moving average, method shown), **CSV export**, **Reset demo data**.
+- **Packing**: Saturday pack sheet grouped by Adenta / Parks & Gardens / Green Butterfly / Delivery Dispatch, with Bottled → Packed → Collected. Empty tables still render when Neon has no confirmed or paid orders.
 - **Orders**: filters (batch, status, source) with **Confirm / Decline / Mark paid / Cancel**, optional **Notify on WhatsApp** (prefilled confirmation), and a standing-orders tab.
 - **Reminders**: queue drafted for opted-in recent customers. **Approve → “Open in WhatsApp” unlocks → business presses Send manually**; status becomes *Opened in WhatsApp (business sends manually)*.
 - **Metrics**: repeat-order rate, confirmed weekly orders, cancellation rate, forecast accuracy (1 − MAPE vs snapshotted forecasts), reminder conversion, opt-in rate — over 8 weeks of sample history.
@@ -38,6 +39,7 @@ Sample customer phones to try in **My orders**: `020 000 0001` (standing order, 
 | `/my-orders` | Phone lookup, one-tap reorder, standing order controls, reminder toggle |
 | `/business/login` | Staff username and password |
 | `/business` | Next-batch demand, outlook, CSV export, reset |
+| `/business/packing` | Kitchen pack sheet by fulfillment table |
 | `/business/orders` | Orders list + actions, standing orders |
 | `/business/reminders` | Approval queue + WhatsApp click-to-chat |
 | `/business/metrics` | Pilot scorecard |
@@ -48,7 +50,7 @@ Staff session: `POST /api/auth/login` `{ username, password }` → `{ ok: true }
 
 Payments: `POST /api/payments/initialize` `{ orderId, customerEmail? }` → `{ authorization_url, access_code, reference, order_id, order_code, amount, total, is_deposit }` for a **confirmed** order. `POST /api/webhooks/paystack` is the Paystack `charge.success` body with header `x-paystack-signature`. See [docs/PAYMENTS.md](docs/PAYMENTS.md).
 
-Staff-only `/api/admin/*`: `overview`, `orders`, `orders/[id]` (`confirm|pay|cancel|notified`), `reminders`, `reminders/[id]` (`approve|dismiss|open`), `metrics`, `export`, `reset`. These routes require the staff session. They do not accept the old passcode cookie.
+Staff-only `/api/admin/*`: `overview`, `orders`, `orders/[id]` (`confirm|pay|cancel|notified|pack_stage`), `packing`, `reminders`, `reminders/[id]` (`approve|dismiss|open`), `metrics`, `export`, `reset`. These routes require the staff session. They do not accept the old passcode cookie. `GET /api/admin/export?batch=YYYY-MM-DD` downloads `goodcane-batch-{date}.csv` from the live store (Postgres when `DATABASE_URL` is set). A failed desk fetch shows an error, not an infinite Loading state.
 
 ## Run locally
 
